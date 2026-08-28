@@ -42,6 +42,11 @@
   .quickMenu button:last-child { border-bottom:none; }
   .quickMenu button:active { background:#f3f4f6; }
   .quickMenu button.danger { color:#b91c1c; font-weight:600; }
+  .mapContextMenu { position:absolute; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.2); z-index:7; overflow:hidden; min-width:140px; }
+  .mapContextMenu button { display:block; width:100%; text-align:left; padding:9px 12px; background:#fff; border:none; font-size:13px; border-bottom:1px solid #f0f0f0; }
+  .mapContextMenu button:last-child { border-bottom:none; }
+  .mapContextMenu button:active { background:#f3f4f6; }
+  .mapContextMenu button:disabled { color:#9ca3af; cursor:default; }
 
   /* TABLE: fixed-size block + one strip of drawer tabs on a chosen edge */
   .furniture.table { background:#fff; border:2px solid #1e3a8a; border-radius:3px; }
@@ -91,6 +96,7 @@
   .searchResultItem:active { background:#f3f4f6; }
   .searchResultItem img { width:34px; height:34px; object-fit:cover; border-radius:4px; flex-shrink:0; background:#f0f0f0; }
   .field { margin-top:10px; }
+  .edgeSelectSmall { width:auto !important; flex-shrink:0; padding:6px; font-size:12px; }
   .field label { font-size:12px; color:#666; display:block; margin-bottom:4px; }
   .typeChoice { display:flex; flex-direction:column; gap:10px; }
   .typeChoice button { padding:14px; font-size:15px; text-align:left; }
@@ -156,12 +162,18 @@ state.furniture.forEach(f => {
   f.x = snap(f.x); f.y = snap(f.y);
   f.w = snap(f.w); f.h = snap(f.h);
   if (f.type === 'hanger-round') f.h = f.w * MAP_ASPECT;
+  if (f.type === 'table' && f.drawers) {
+    const legacyEdge = f.edge || 'right';
+    f.drawers.forEach(d => { if (!d.edge) d.edge = legacyEdge; });
+  }
 });
 localStorage.setItem(storageKeyFor(currentStore), JSON.stringify(state));
 
 let selectedFurnitureId = null;
 let quickMenuOpenFor = null;
 let pendingClickTimer = null;
+let clipboardFixture = null;
+let mapContextMenuAt = null; // {x, y} in map %, or null
 
 const mapEl = document.getElementById('map');
 const addFurnitureBtn = document.getElementById('addFurnitureBtn');
@@ -237,8 +249,8 @@ async function searchKoroshi(query){
 function newFixture(type){
   const base = { id: uid('f'), type, x:snap(35), y:snap(35) };
   if (type === 'table') {
-    return { ...base, name:'Mesa', w:snap(TABLE_W), h:snap(TABLE_H), edge:'right', rot:0,
-      drawers:[{id:uid('d'),name:'Cajón 1',products:[]},{id:uid('d'),name:'Cajón 2',products:[]}] };
+    return { ...base, name:'Mesa', w:snap(TABLE_W), h:snap(TABLE_H), rot:0,
+      drawers:[{id:uid('d'),name:'Cajón 1',edge:'right',products:[]},{id:uid('d'),name:'Cajón 2',edge:'right',products:[]}] };
   }
   if (type === 'counter') {
     return { ...base, name:'Mostrador', w:snap(26), h:snap(14), rot:0,
@@ -266,20 +278,24 @@ function render(){
     el.dataset.id = f.id;
 
     if (f.type === 'table') {
-      const strip = document.createElement('div');
-      strip.className = 'drawerStrip edge-' + f.edge;
-      f.drawers.forEach(d => {
-        const tick = document.createElement('div');
-        tick.className = 'drawerTick' + (d.products.length ? ' filled' : '');
-        const label = document.createElement('span');
-        label.textContent = d.name;
-        label.style.display = 'inline-block';
-        label.style.transform = f.rot ? `rotate(${-f.rot}deg)` : '';
-        tick.appendChild(label);
-        tick.addEventListener('click', (e) => { e.stopPropagation(); openViewSheet(f.id, d.id); });
-        strip.appendChild(tick);
+      ['right','left','top','bottom'].forEach(edge => {
+        const drawersOnEdge = f.drawers.filter(d => (d.edge || 'right') === edge);
+        if (!drawersOnEdge.length) return;
+        const strip = document.createElement('div');
+        strip.className = 'drawerStrip edge-' + edge;
+        drawersOnEdge.forEach(d => {
+          const tick = document.createElement('div');
+          tick.className = 'drawerTick' + (d.products.length ? ' filled' : '');
+          const label = document.createElement('span');
+          label.textContent = d.name;
+          label.style.display = 'inline-block';
+          label.style.transform = f.rot ? `rotate(${-f.rot}deg)` : '';
+          tick.appendChild(label);
+          tick.addEventListener('click', (e) => { e.stopPropagation(); openViewSheet(f.id, d.id); });
+          strip.appendChild(tick);
+        });
+        el.appendChild(strip);
       });
-      el.appendChild(strip);
       el.addEventListener('click', (e) => {
         if (e.target.closest('.drawerTick, .move-handle, .resize-right, .resize-left, .resize-top, .resize-bottom, .rotate-handle, .quickBubble, .quickMenu')) return;
         selectedFurnitureId = (selectedFurnitureId === f.id) ? null : f.id;
@@ -359,6 +375,8 @@ function render(){
         if (f.type === 'counter') items.push(['Ver contenido', () => { closeQuickMenu(); openViewSheet(f.id, f.drawers[0].id); }]);
         items.push(['Editar', () => { closeQuickMenu(); openEditSheet(f.id); }]);
         if (f.type === 'table') items.push(['+ Cajón', () => addDrawerQuick(f.id)]);
+        items.push(['Copiar', () => copyFixture(f.id)]);
+        items.push(['Duplicar', () => duplicateFixture(f.id)]);
         items.push(['Eliminar', () => {
           pushUndo();
           state.furniture = state.furniture.filter(x => x.id !== f.id);
@@ -377,14 +395,48 @@ function render(){
 
     mapEl.appendChild(el);
   });
+
+  if (mapContextMenuAt) {
+    const menu = document.createElement('div');
+    menu.className = 'mapContextMenu';
+    menu.style.left = mapContextMenuAt.x + '%';
+    menu.style.top = mapContextMenuAt.y + '%';
+    const items = [
+      ['Nuevo mueble', () => { closeMapContextMenu(); addFurnitureBtn.click(); }],
+      ['Pegar', clipboardFixture ? () => pasteFixtureAt(mapContextMenuAt.x, mapContextMenuAt.y) : null]
+    ];
+    items.forEach(([label, fn]) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      if (!fn) b.disabled = true;
+      else b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+      menu.appendChild(b);
+    });
+    mapEl.appendChild(menu);
+  }
 }
+
+function closeMapContextMenu(){ mapContextMenuAt = null; }
 
 mapEl.addEventListener('click', (e) => {
   if (e.target === mapEl) {
     selectedFurnitureId = null;
     quickMenuOpenFor = null;
+    closeMapContextMenu();
     render();
   }
+});
+
+mapEl.addEventListener('dblclick', (e) => {
+  if (e.target !== mapEl) return;
+  e.preventDefault();
+  const rect = mapEl.getBoundingClientRect();
+  const x = snap((e.clientX - rect.left) / rect.width * 100);
+  const y = snap((e.clientY - rect.top) / rect.height * 100);
+  selectedFurnitureId = null;
+  quickMenuOpenFor = null;
+  mapContextMenuAt = { x, y };
+  render();
 });
 
 function enableDrag(handle, el, f){
@@ -487,8 +539,52 @@ function rotateFixture(furnitureId){
 function addDrawerQuick(furnitureId){
   pushUndo();
   const f = state.furniture.find(x => x.id === furnitureId);
-  f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), products: [] });
+  f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), edge:'right', products: [] });
   persist(); closeQuickMenu(); render();
+}
+
+function reidFixture(f){
+  const copy = JSON.parse(JSON.stringify(f));
+  copy.id = uid('f');
+  copy.drawers.forEach(d => { d.id = uid('d'); });
+  return copy;
+}
+function copyFixture(furnitureId){
+  const f = state.furniture.find(x => x.id === furnitureId);
+  clipboardFixture = JSON.parse(JSON.stringify(f));
+  closeQuickMenu(); render();
+}
+function duplicateFixture(furnitureId){
+  pushUndo();
+  const f = state.furniture.find(x => x.id === furnitureId);
+  const copy = reidFixture(f);
+  if (f.type === 'counter' && state.furniture.some(x => x.type === 'counter')) {
+    alert('Solo puede haber un Mostrador.');
+    return;
+  }
+  copy.x = snap(Math.min(100 - copy.w, f.x + 4));
+  copy.y = snap(Math.min(100 - copy.h, f.y + 4));
+  state.furniture.push(copy);
+  persist();
+  selectedFurnitureId = copy.id;
+  closeQuickMenu(); render();
+}
+function pasteFixtureAt(x, y){
+  if (!clipboardFixture) return;
+  if (clipboardFixture.type === 'counter' && state.furniture.some(f => f.type === 'counter')) {
+    alert('Solo puede haber un Mostrador.');
+    closeMapContextMenu(); render();
+    return;
+  }
+  pushUndo();
+  const copy = reidFixture(clipboardFixture);
+  copy.x = snap(Math.max(0, Math.min(100 - copy.w, x - copy.w/2)));
+  copy.y = snap(Math.max(0, Math.min(100 - copy.h, y - copy.h/2)));
+  state.furniture.push(copy);
+  persist();
+  selectedFurnitureId = copy.id;
+  closeMapContextMenu();
+  render();
 }
 function enableRotate(handle, el, f){
   handle.addEventListener('pointerdown', (e) => {
@@ -606,21 +702,21 @@ function openEditSheet(furnitureId){
 
   let tableSection = '';
   if (isTable) {
-    let rows = f.drawers.map(d => `
+    let rows = f.drawers.map(d => {
+      const edge = d.edge || 'right';
+      return `
       <div class="rowItem">
         <input class="crateNameInput" type="text" value="${d.name}" data-crate="${d.id}">
-        <button class="del" data-del-crate="${d.id}">Eliminar</button>
-      </div>`).join('');
-    tableSection = `
-      <div class="field">
-        <label>Lado de los cajones</label>
-        <select id="edgeSelect">
-          <option value="right" ${f.edge==='right'?'selected':''}>Derecha</option>
-          <option value="left" ${f.edge==='left'?'selected':''}>Izquierda</option>
-          <option value="top" ${f.edge==='top'?'selected':''}>Arriba</option>
-          <option value="bottom" ${f.edge==='bottom'?'selected':''}>Abajo</option>
+        <select class="edgeSelectSmall" data-crate-edge="${d.id}">
+          <option value="right" ${edge==='right'?'selected':''}>Derecha</option>
+          <option value="left" ${edge==='left'?'selected':''}>Izquierda</option>
+          <option value="top" ${edge==='top'?'selected':''}>Arriba</option>
+          <option value="bottom" ${edge==='bottom'?'selected':''}>Abajo</option>
         </select>
-      </div>
+        <button class="del" data-del-crate="${d.id}">Eliminar</button>
+      </div>`;
+    }).join('');
+    tableSection = `
       <hr>
       <h2 style="font-size:14px;">Cajones</h2>
       ${rows}
@@ -646,10 +742,13 @@ function openEditSheet(furnitureId){
   });
 
   if (isTable) {
-    document.getElementById('edgeSelect').addEventListener('change', (e) => {
-      pushUndo();
-      f.edge = e.target.value;
-      persist(); render();
+    sheet.querySelectorAll('[data-crate-edge]').forEach(sel => {
+      sel.addEventListener('change', () => {
+        pushUndo();
+        const d = f.drawers.find(x => x.id === sel.dataset.crateEdge);
+        d.edge = sel.value;
+        persist(); render(); openEditSheet(furnitureId);
+      });
     });
     sheet.querySelectorAll('[data-crate]').forEach(inp => {
       inp.addEventListener('change', () => {
@@ -669,7 +768,7 @@ function openEditSheet(furnitureId){
     });
     document.getElementById('addCrateBtn').addEventListener('click', () => {
       pushUndo();
-      f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), products: [] });
+      f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), edge:'right', products: [] });
       persist(); render(); openEditSheet(furnitureId);
     });
   }

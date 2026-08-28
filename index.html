@@ -235,11 +235,13 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+const KOROSHI_PROXY_URL = 'https://koroshishop.linkgarcia93.workers.dev';
+
 let koroshiSearchAbort = null;
 async function searchKoroshi(query){
   if (koroshiSearchAbort) koroshiSearchAbort.abort();
   koroshiSearchAbort = new AbortController();
-  const url = `https://koroshishop.com/search/suggest.json?q=${encodeURIComponent(query)}&resources[type]=product&resources[limit]=8&resources[options][unavailable_products]=last`;
+  const url = `${KOROSHI_PROXY_URL}?q=${encodeURIComponent(query)}`;
   const res = await fetch(url, { signal: koroshiSearchAbort.signal });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();

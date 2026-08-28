@@ -12,7 +12,7 @@
   header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:10px 14px; background:var(--panel); border-bottom:1px solid #111; position:sticky; top:0; z-index:5; }
   .titleWrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   header h1 { font-size:14px; margin:0; text-transform:uppercase; letter-spacing:0.08em; font-weight:800; color:#111; }
-  .storeBadge { font-size:11px; font-weight:800; color:#fff; background:var(--accent); border-radius:4px; padding:2px 7px; letter-spacing:0.02em; }
+  .storeBadge { font-size:11px; font-weight:800; color:#fff; background:var(--accent); border-radius:4px; padding:2px 7px; letter-spacing:0.02em; white-space:nowrap; }
   .storeSelectWrap { display:flex; align-items:center; gap:6px; }
   .storeSelectWrap label { font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:#6b7280; }
   #storeSelect { border:1px solid #111; border-radius:6px; padding:5px 8px; font-size:12px; font-weight:700; background:#fff; color:#111; }
@@ -123,6 +123,12 @@
 <script>
 const STORAGE_PREFIX = 'storeMapState_v3_';
 const CURRENT_STORE_KEY = 'storeMapState_currentStore';
+
+// Fill this in with real code -> "Nombre, Ubicación" pairs. Blank = shows bare code only.
+const STORE_LOCATIONS = {
+  'K65': 'Baricentro, Barberà del Vallès',
+};
+
 const LEGACY_STORAGE_KEY = 'storeMapState_v3'; // pre-multi-store save, migrated into K01
 const STORE_CODES = Array.from({length:77}, (_,i) => 'K' + String(i+1).padStart(2,'0'));
 const TABLE_W = 22, TABLE_H = 14; // fixed table size, % of map (grid-aligned)
@@ -172,13 +178,18 @@ STORE_CODES.forEach(code => {
   opt.textContent = code;
   storeSelect.appendChild(opt);
 });
+function updateBadge(){
+  const loc = STORE_LOCATIONS[currentStore];
+  storeBadge.textContent = loc ? (currentStore + ' — ' + loc) : currentStore;
+}
+
 storeSelect.value = currentStore;
-storeBadge.textContent = currentStore;
+updateBadge();
 storeSelect.addEventListener('change', () => {
   currentStore = storeSelect.value;
   localStorage.setItem(CURRENT_STORE_KEY, currentStore);
   state = JSON.parse(localStorage.getItem(storageKeyFor(currentStore)) || 'null') || seedState();
-  storeBadge.textContent = currentStore;
+  updateBadge();
   selectedFurnitureId = null;
   quickMenuOpenFor = null;
   undoStack = [];

@@ -4,12 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Mapa Tienda</title>
+<link rel="icon" href="icon.png">
 <style>
-  :root { --primary:#2563eb; --bg:#f4f5f7; --panel:#fff; --border:#d1d5db; }
+  :root { --primary:#111111; --accent:#2563eb; --bg:#fafafa; --panel:#fff; --border:#e5e7eb; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); }
-  header { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; }
-  header h1 { font-size:16px; margin:0; }
+  header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:10px 14px; background:var(--panel); border-bottom:1px solid #111; position:sticky; top:0; z-index:5; }
+  .titleWrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { font-size:14px; margin:0; text-transform:uppercase; letter-spacing:0.08em; font-weight:800; color:#111; }
+  .storeBadge { font-size:11px; font-weight:800; color:#fff; background:var(--accent); border-radius:4px; padding:2px 7px; letter-spacing:0.02em; }
+  .storeSelectWrap { display:flex; align-items:center; gap:6px; }
+  .storeSelectWrap label { font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:#6b7280; }
+  #storeSelect { border:1px solid #111; border-radius:6px; padding:5px 8px; font-size:12px; font-weight:700; background:#fff; color:#111; }
   header .actions { display:flex; gap:8px; }
   button { border:none; border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; }
   .btn-primary { background:var(--primary); color:#fff; }
@@ -93,7 +99,14 @@
 <body>
 
 <header>
-  <h1>Mapa de tienda</h1>
+  <div class="titleWrap">
+    <h1>Mapa de tienda</h1>
+    <span id="storeBadge" class="storeBadge"></span>
+    <div class="storeSelectWrap">
+      <label for="storeSelect">Seleccionar tienda</label>
+      <select id="storeSelect"></select>
+    </div>
+  </div>
   <div class="actions">
     <button id="undoBtn" class="btn-ghost" style="display:flex; align-items:center; gap:6px;">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 8 8 8"/></svg>
@@ -108,22 +121,38 @@
 <div id="sheet"></div>
 
 <script>
-const STORAGE_KEY = 'storeMapState_v3';
+const STORAGE_PREFIX = 'storeMapState_v3_';
+const CURRENT_STORE_KEY = 'storeMapState_currentStore';
+const LEGACY_STORAGE_KEY = 'storeMapState_v3'; // pre-multi-store save, migrated into K01
+const STORE_CODES = Array.from({length:77}, (_,i) => 'K' + String(i+1).padStart(2,'0'));
 const TABLE_W = 22, TABLE_H = 14; // fixed table size, % of map (grid-aligned)
 const MAP_ASPECT = 16/10; // #map's aspect-ratio; h% = w% * MAP_ASPECT keeps a shape visually square/circular
 const GRID = 2; // snap step, % of map
 function snap(v){ return Math.round(v / GRID) * GRID; }
 
 function seedState(){ return { furniture: [] }; }
+function storageKeyFor(code){ return STORAGE_PREFIX + code; }
 
-let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || seedState();
+let currentStore = localStorage.getItem(CURRENT_STORE_KEY) || 'K01';
+if (!STORE_CODES.includes(currentStore)) currentStore = 'K01';
+
+// one-time migration: old single-store save moves into K01 if K01 has nothing yet
+(function migrateLegacy(){
+  const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (legacy && !localStorage.getItem(storageKeyFor('K01'))) {
+    localStorage.setItem(storageKeyFor('K01'), legacy);
+  }
+})();
+
+let state = JSON.parse(localStorage.getItem(storageKeyFor(currentStore)) || 'null') || seedState();
 // one-time migration: snap previously-saved fixtures onto the current grid
 state.furniture.forEach(f => {
   f.x = snap(f.x); f.y = snap(f.y);
   f.w = snap(f.w); f.h = snap(f.h);
   if (f.type === 'hanger-round') f.h = f.w * MAP_ASPECT;
 });
-localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+localStorage.setItem(storageKeyFor(currentStore), JSON.stringify(state));
+
 let selectedFurnitureId = null;
 let quickMenuOpenFor = null;
 let pendingClickTimer = null;
@@ -135,7 +164,30 @@ undoBtn.addEventListener('click', undo);
 const sheet = document.getElementById('sheet');
 const sheetOverlay = document.getElementById('sheetOverlay');
 
-function persist(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+const storeSelect = document.getElementById('storeSelect');
+const storeBadge = document.getElementById('storeBadge');
+STORE_CODES.forEach(code => {
+  const opt = document.createElement('option');
+  opt.value = code;
+  opt.textContent = code;
+  storeSelect.appendChild(opt);
+});
+storeSelect.value = currentStore;
+storeBadge.textContent = currentStore;
+storeSelect.addEventListener('change', () => {
+  currentStore = storeSelect.value;
+  localStorage.setItem(CURRENT_STORE_KEY, currentStore);
+  state = JSON.parse(localStorage.getItem(storageKeyFor(currentStore)) || 'null') || seedState();
+  storeBadge.textContent = currentStore;
+  selectedFurnitureId = null;
+  quickMenuOpenFor = null;
+  undoStack = [];
+  sheet.classList.remove('open');
+  sheetOverlay.classList.remove('open');
+  render();
+});
+
+function persist(){ localStorage.setItem(storageKeyFor(currentStore), JSON.stringify(state)); }
 function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
 
 let undoStack = [];

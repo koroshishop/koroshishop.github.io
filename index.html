@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mapa Tienda</title>
+<style>
+  :root { --primary:#2563eb; --bg:#f4f5f7; --panel:#fff; --border:#d1d5db; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:16px; margin:0; }
+  header .actions { display:flex; gap:8px; }
+  button { border:none; border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; }
+  .btn-primary { background:var(--primary); color:#fff; }
+  .btn-ghost { background:#e5e7eb; color:#111; }
+  #mapWrap { padding:10px; }
+  #map { position:relative; width:100%; aspect-ratio:16/10; background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; touch-action:none; }
+
+  .furniture { position:absolute; user-select:none; transform-origin:center center; }
+  .furniture.selected { outline:2px dashed #f59e0b; outline-offset:2px; }
+
+  .move-handle { position:absolute; left:50%; top:50%; width:26px; height:26px; margin-left:-13px; margin-top:-13px; border-radius:50%; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; cursor:move; z-index:4; touch-action:none; }
+  .move-handle svg { width:16px; height:16px; }
+
+  .resize-right { position:absolute; right:-8px; top:50%; margin-top:-8px; width:16px; height:16px; background:#111; opacity:.7; border-radius:50%; touch-action:none; z-index:5; cursor:ew-resize; }
+  .resize-left { position:absolute; left:-8px; top:50%; margin-top:-8px; width:16px; height:16px; background:#111; opacity:.7; border-radius:50%; touch-action:none; z-index:5; cursor:ew-resize; }
+  .resize-top { position:absolute; top:-8px; left:50%; margin-left:-8px; width:16px; height:16px; background:#111; opacity:.7; border-radius:50%; touch-action:none; z-index:5; cursor:ns-resize; }
+  .resize-bottom { position:absolute; bottom:-8px; left:50%; margin-left:-8px; width:16px; height:16px; background:#111; opacity:.7; border-radius:50%; touch-action:none; z-index:5; cursor:ns-resize; }
+
+  .rotate-handle { position:absolute; right:-22px; bottom:-22px; width:16px; height:16px; background:#f59e0b; border-radius:50%; touch-action:none; z-index:5; box-shadow:0 0 0 2px #fff; cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><path d="M10 3a7 7 0 1 1-6.32 4" fill="none" stroke="black" stroke-width="1.5"/><path d="M2 3v4h4" fill="none" stroke="black" stroke-width="1.5"/></svg>') 10 10, alias; }
+
+  .quickBubble { position:absolute; top:0; left:100%; margin-left:8px; width:28px; height:28px; border-radius:50%; background:#111; color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; z-index:6; box-shadow:0 1px 4px rgba(0,0,0,.3); cursor:pointer; }
+  .quickMenu { position:absolute; top:0; left:100%; margin-left:40px; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.2); z-index:6; overflow:hidden; min-width:130px; }
+  .quickMenu button { display:block; width:100%; text-align:left; padding:9px 12px; background:#fff; border:none; font-size:13px; border-bottom:1px solid #f0f0f0; }
+  .quickMenu button:last-child { border-bottom:none; }
+  .quickMenu button:active { background:#f3f4f6; }
+  .quickMenu button.danger { color:#b91c1c; font-weight:600; }
+
+  /* TABLE: fixed-size block + one strip of drawer tabs on a chosen edge */
+  .furniture.table { background:#fff; border:2px solid #1e3a8a; border-radius:3px; }
+  .furniture.counter { background:#f3f4f6; border:2px solid #9ca3af; border-radius:3px; display:flex; align-items:center; justify-content:center; }
+  .furniture.counter.filled { background:#fff7ed; border-color:#c2410c; }
+  .furniture.counter span { font-size:11px; color:#6b7280; text-align:center; padding:2px; }
+  .furniture.counter.filled span { color:#c2410c; }
+  .drawerStrip { position:absolute; display:flex; gap:2px; }
+  .drawerStrip.edge-right, .drawerStrip.edge-left { flex-direction:column; top:6%; bottom:6%; width:22%; }
+  .drawerStrip.edge-right { right:-3%; }
+  .drawerStrip.edge-left { left:-3%; }
+  .drawerStrip.edge-top, .drawerStrip.edge-bottom { flex-direction:row; left:6%; right:6%; height:26%; }
+  .drawerStrip.edge-top { top:-4%; }
+  .drawerStrip.edge-bottom { bottom:-4%; }
+  .drawerTick { flex:1; background:#e5e7eb; border:1px solid #6b7280; border-radius:2px; display:flex; align-items:center; justify-content:center; font-size:8px; color:#4b5563; overflow:hidden; text-align:center; line-height:1; padding:1px; }
+  .drawerTick.filled { background:#93c5fd; border-color:#1e3a8a; color:#1e3a8a; }
+  .drawerTick:active { background:#3b82f6; }
+  .furniture.table.editing .drawerTick { pointer-events:none; opacity:.5; }
+
+  /* HANGER T: thin rectangle */
+  .furniture.hanger-t { background:#7c3aed; border-radius:2px; display:flex; align-items:center; justify-content:center; }
+  .furniture.hanger-t span { writing-mode:vertical-rl; font-size:10px; color:#fff; }
+
+  /* HANGER ROUND: circle */
+  .furniture.hanger-round { background:#059669; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .furniture.hanger-round span { font-size:10px; color:#fff; text-align:center; padding:2px; }
+
+  #sheetOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; z-index:10; }
+  #sheet { position:fixed; left:0; right:0; bottom:0; background:var(--panel); border-radius:14px 14px 0 0; max-height:75vh; overflow-y:auto; padding:14px; transform:translateY(100%); transition:transform .2s ease; z-index:11; }
+  #sheet.open { transform:translateY(0); }
+  #sheetOverlay.open { display:block; }
+  .sheetHeader { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px; }
+  .sheetHeader h2 { font-size:16px; margin:0; }
+  .rowItem { display:flex; align-items:center; justify-content:space-between; padding:8px; border-bottom:1px solid #eee; gap:8px; }
+  .rowItem:last-child { border-bottom:none; }
+  .small { font-size:12px; color:#666; }
+  .del { background:#fee2e2; color:#b91c1c; padding:6px 10px; font-size:12px; flex-shrink:0; }
+  input[type=text], select { width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; font-size:14px; }
+  .crateNameInput { flex:1; border:1px solid var(--border); border-radius:6px; padding:6px; font-size:14px; }
+  .addRow { display:flex; gap:6px; margin-top:10px; }
+  .addRow input { flex:1; }
+  .prodThumb { width:34px; height:34px; object-fit:cover; border-radius:4px; flex-shrink:0; background:#f0f0f0; }
+  .searchWrap { margin-top:12px; }
+  .searchResults { max-height:220px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; margin-top:6px; }
+  .searchResultItem { display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid #eee; cursor:pointer; }
+  .searchResultItem:last-child { border-bottom:none; }
+  .searchResultItem:active { background:#f3f4f6; }
+  .searchResultItem img { width:34px; height:34px; object-fit:cover; border-radius:4px; flex-shrink:0; background:#f0f0f0; }
+  .field { margin-top:10px; }
+  .field label { font-size:12px; color:#666; display:block; margin-bottom:4px; }
+  .typeChoice { display:flex; flex-direction:column; gap:10px; }
+  .typeChoice button { padding:14px; font-size:15px; text-align:left; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mapa de tienda</h1>
+  <div class="actions">
+    <button id="undoBtn" class="btn-ghost" style="display:flex; align-items:center; gap:6px;">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 8 8 8"/></svg>
+    </button>
+    <button id="addFurnitureBtn" class="btn-ghost">+ Mueble</button>
+  </div>
+</header>
+
+<div id="mapWrap"><div id="map"></div></div>
+
+<div id="sheetOverlay"></div>
+<div id="sheet"></div>
+
+<script>
+const STORAGE_KEY = 'storeMapState_v3';
+const TABLE_W = 22, TABLE_H = 14; // fixed table size, % of map (grid-aligned)
+const MAP_ASPECT = 16/10; // #map's aspect-ratio; h% = w% * MAP_ASPECT keeps a shape visually square/circular
+const GRID = 2; // snap step, % of map
+function snap(v){ return Math.round(v / GRID) * GRID; }
+
+function seedState(){ return { furniture: [] }; }
+
+let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || seedState();
+// one-time migration: snap previously-saved fixtures onto the current grid
+state.furniture.forEach(f => {
+  f.x = snap(f.x); f.y = snap(f.y);
+  f.w = snap(f.w); f.h = snap(f.h);
+  if (f.type === 'hanger-round') f.h = f.w * MAP_ASPECT;
+});
+localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+let selectedFurnitureId = null;
+let quickMenuOpenFor = null;
+let pendingClickTimer = null;
+
+const mapEl = document.getElementById('map');
+const addFurnitureBtn = document.getElementById('addFurnitureBtn');
+const undoBtn = document.getElementById('undoBtn');
+undoBtn.addEventListener('click', undo);
+const sheet = document.getElementById('sheet');
+const sheetOverlay = document.getElementById('sheetOverlay');
+
+function persist(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+
+let undoStack = [];
+function pushUndo(){
+  undoStack.push(JSON.stringify(state.furniture));
+  if (undoStack.length > 50) undoStack.shift();
+}
+function undo(){
+  if (!undoStack.length) return;
+  state.furniture = JSON.parse(undoStack.pop());
+  selectedFurnitureId = null;
+  quickMenuOpenFor = null;
+  persist();
+  sheet.classList.remove('open');
+  sheetOverlay.classList.remove('open');
+  render();
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    undo();
+  }
+});
+
+let koroshiSearchAbort = null;
+async function searchKoroshi(query){
+  if (koroshiSearchAbort) koroshiSearchAbort.abort();
+  koroshiSearchAbort = new AbortController();
+  const url = `https://koroshishop.com/search/suggest.json?q=${encodeURIComponent(query)}&resources[type]=product&resources[limit]=8&resources[options][unavailable_products]=last`;
+  const res = await fetch(url, { signal: koroshiSearchAbort.signal });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return (data.resources && data.resources.results && data.resources.results.products) || [];
+}
+
+function newFixture(type){
+  const base = { id: uid('f'), type, x:snap(35), y:snap(35) };
+  if (type === 'table') {
+    return { ...base, name:'Mesa', w:snap(TABLE_W), h:snap(TABLE_H), edge:'right', rot:0,
+      drawers:[{id:uid('d'),name:'Cajón 1',products:[]},{id:uid('d'),name:'Cajón 2',products:[]}] };
+  }
+  if (type === 'counter') {
+    return { ...base, name:'Mostrador', w:snap(26), h:snap(14), rot:0,
+      drawers:[{id:uid('d'),name:'Mostrador',products:[]}] };
+  }
+  if (type === 'hanger-t') {
+    return { ...base, name:'Percha', w:snap(2), h:TABLE_H, rot:0, drawers:[{id:uid('d'),name:'Percha',products:[]}] };
+  }
+  const rw = snap(8);
+  return { ...base, name:'Percha redonda', w:rw, h:rw*MAP_ASPECT, rot:0, drawers:[{id:uid('d'),name:'Percha redonda',products:[]}] };
+}
+
+function render(){
+  mapEl.innerHTML = '';
+  state.furniture.forEach(f => {
+    const el = document.createElement('div');
+    const isSelected = selectedFurnitureId === f.id;
+    const isFilled = f.type === 'counter' && f.drawers[0] && f.drawers[0].products.length;
+    el.className = 'furniture ' + f.type + (isSelected ? ' selected' : '') + (isFilled ? ' filled' : '');
+    el.style.left = f.x + '%';
+    el.style.top = f.y + '%';
+    el.style.width = f.w + '%';
+    el.style.height = f.h + '%';
+    el.style.transform = f.rot ? `rotate(${f.rot}deg)` : '';
+    el.dataset.id = f.id;
+
+    if (f.type === 'table') {
+      const strip = document.createElement('div');
+      strip.className = 'drawerStrip edge-' + f.edge;
+      f.drawers.forEach(d => {
+        const tick = document.createElement('div');
+        tick.className = 'drawerTick' + (d.products.length ? ' filled' : '');
+        const label = document.createElement('span');
+        label.textContent = d.name;
+        label.style.display = 'inline-block';
+        label.style.transform = f.rot ? `rotate(${-f.rot}deg)` : '';
+        tick.appendChild(label);
+        tick.addEventListener('click', (e) => { e.stopPropagation(); openViewSheet(f.id, d.id); });
+        strip.appendChild(tick);
+      });
+      el.appendChild(strip);
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.drawerTick, .move-handle, .resize-right, .resize-left, .resize-top, .resize-bottom, .rotate-handle, .quickBubble, .quickMenu')) return;
+        selectedFurnitureId = (selectedFurnitureId === f.id) ? null : f.id;
+        quickMenuOpenFor = null;
+        render();
+      });
+    } else if (f.type === 'counter') {
+      const span = document.createElement('span');
+      span.textContent = f.name;
+      span.style.display = 'inline-block';
+      span.style.transform = f.rot ? `rotate(${-f.rot}deg)` : '';
+      el.appendChild(span);
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.move-handle, .resize-right, .resize-left, .resize-top, .resize-bottom, .rotate-handle, .quickBubble, .quickMenu')) return;
+        selectedFurnitureId = (selectedFurnitureId === f.id) ? null : f.id;
+        quickMenuOpenFor = null;
+        render();
+      });
+    } else {
+      const span = document.createElement('span');
+      span.textContent = f.name;
+      span.style.display = 'inline-block';
+      span.style.transform = f.rot ? `rotate(${-f.rot}deg)` : '';
+      el.appendChild(span);
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.move-handle, .resize-right, .resize-left, .resize-top, .resize-bottom, .rotate-handle, .quickBubble, .quickMenu')) return;
+        if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; return; }
+        pendingClickTimer = setTimeout(() => {
+          pendingClickTimer = null;
+          openViewSheet(f.id, f.drawers[0].id);
+        }, 260);
+      });
+    }
+
+    const moveHandle = document.createElement('div');
+    moveHandle.className = 'move-handle';
+    moveHandle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></svg>';
+    el.appendChild(moveHandle);
+    enableDrag(moveHandle, el, f);
+
+    el.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; } selectedFurnitureId = f.id; quickMenuOpenFor = f.id; render(); });
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; } selectedFurnitureId = f.id; quickMenuOpenFor = f.id; render(); });
+
+    if (isSelected) {
+      if (f.type === 'hanger-round') {
+        const handleR = document.createElement('div');
+        handleR.className = 'resize-right';
+        el.appendChild(handleR);
+        enableResizeEdge(handleR, el, f, 'right');
+      } else {
+        ['right','left','top','bottom'].forEach(edge => {
+          const h = document.createElement('div');
+          h.className = 'resize-' + edge;
+          el.appendChild(h);
+          enableResizeEdge(h, el, f, edge);
+        });
+      }
+
+      const rotHandle = document.createElement('div');
+      rotHandle.className = 'rotate-handle';
+      el.appendChild(rotHandle);
+      enableRotate(rotHandle, el, f);
+
+      const bubble = document.createElement('div');
+      bubble.className = 'quickBubble';
+      bubble.textContent = '⋮';
+      bubble.style.transform = f.rot ? `rotate(${-f.rot}deg)` : '';
+      bubble.addEventListener('click', (e) => { e.stopPropagation(); toggleQuickMenu(f.id); });
+      el.appendChild(bubble);
+
+      if (quickMenuOpenFor === f.id) {
+        const menu = document.createElement('div');
+        menu.className = 'quickMenu';
+        menu.style.transform = f.rot ? `rotate(${-f.rot}deg)` : '';
+        const items = [];
+        if (f.type === 'table' || f.type === 'counter') items.push(['Girar 45°', () => rotateFixture(f.id)]);
+        if (f.type === 'counter') items.push(['Ver contenido', () => { closeQuickMenu(); openViewSheet(f.id, f.drawers[0].id); }]);
+        items.push(['Editar', () => { closeQuickMenu(); openEditSheet(f.id); }]);
+        if (f.type === 'table') items.push(['+ Cajón', () => addDrawerQuick(f.id)]);
+        items.push(['Eliminar', () => {
+          pushUndo();
+          state.furniture = state.furniture.filter(x => x.id !== f.id);
+          selectedFurnitureId = null; persist(); closeQuickMenu(); render();
+        }]);
+        items.forEach(([label, fn]) => {
+          const b = document.createElement('button');
+          if (label === 'Eliminar') b.className = 'danger';
+          b.textContent = label;
+          b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+          menu.appendChild(b);
+        });
+        el.appendChild(menu);
+      }
+    }
+
+    mapEl.appendChild(el);
+  });
+}
+
+mapEl.addEventListener('click', (e) => {
+  if (e.target === mapEl) {
+    selectedFurnitureId = null;
+    quickMenuOpenFor = null;
+    render();
+  }
+});
+
+function enableDrag(handle, el, f){
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    pushUndo();
+    const rect = mapEl.getBoundingClientRect();
+    const startX = e.clientX, startY = e.clientY;
+    const origX = f.x, origY = f.y;
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      const dxPct = (ev.clientX - startX) / rect.width * 100;
+      const dyPct = (ev.clientY - startY) / rect.height * 100;
+      f.x = snap(Math.max(0, Math.min(100 - f.w, origX + dxPct)));
+      f.y = snap(Math.max(0, Math.min(100 - f.h, origY + dyPct)));
+      el.style.left = f.x + '%';
+      el.style.top = f.y + '%';
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      persist();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+}
+
+const EDGE_SIGN = { right:1, left:-1, bottom:1, top:-1 };
+const EDGE_AXIS = { right:'w', left:'w', bottom:'h', top:'h' };
+function axis0For(edge){ return EDGE_AXIS[edge]; }
+
+function enableResizeEdge(handle, el, f, edge){
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    pushUndo();
+    const rect = mapEl.getBoundingClientRect();
+    const origW = f.w, origH = f.h;
+    const cx = f.x + origW/2, cy = f.y + origH/2;
+    const rad = (f.rot || 0) * Math.PI/180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const cosInv = Math.cos(-rad), sinInv = Math.sin(-rad);
+    const MIN_SIZE = (f.type === 'hanger-t' && axis0For(edge) === 'w') ? GRID : GRID*3;
+    const axis = EDGE_AXIS[edge], sign = EDGE_SIGN[edge];
+    const anchorLocal = axis === 'w' ? { x:-sign*origW/2, y:0 } : { x:0, y:-sign*origH/2 };
+    const anchorWorld = {
+      x: cx + (anchorLocal.x*cos - anchorLocal.y*sin),
+      y: cy + (anchorLocal.x*sin + anchorLocal.y*cos)
+    };
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      const mx = (ev.clientX - rect.left) / rect.width * 100;
+      const my = (ev.clientY - rect.top) / rect.height * 100;
+      const dx = mx - anchorWorld.x, dy = my - anchorWorld.y;
+      const localX = dx*cosInv - dy*sinInv;
+      const localY = dx*sinInv + dy*cosInv;
+      let newW = origW, newH = origH;
+      if (axis === 'w') {
+        newW = snap(Math.max(MIN_SIZE, sign*localX));
+        if (f.type === 'hanger-round') newH = newW * MAP_ASPECT;
+      } else {
+        newH = snap(Math.max(MIN_SIZE, sign*localY));
+      }
+      const centerOffsetLocal = axis === 'w' ? { x:sign*newW/2, y:0 } : { x:0, y:sign*newH/2 };
+      const newCenter = {
+        x: anchorWorld.x + (centerOffsetLocal.x*cos - centerOffsetLocal.y*sin),
+        y: anchorWorld.y + (centerOffsetLocal.x*sin + centerOffsetLocal.y*cos)
+      };
+      f.w = newW; f.h = newH;
+      f.x = snap(Math.max(0, newCenter.x - newW/2));
+      f.y = snap(Math.max(0, newCenter.y - newH/2));
+      el.style.width = f.w + '%';
+      el.style.height = f.h + '%';
+      el.style.left = f.x + '%';
+      el.style.top = f.y + '%';
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      persist();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+}
+
+function toggleQuickMenu(furnitureId){
+  quickMenuOpenFor = (quickMenuOpenFor === furnitureId) ? null : furnitureId;
+  render();
+}
+function closeQuickMenu(){
+  quickMenuOpenFor = null;
+}
+function rotateFixture(furnitureId){
+  pushUndo();
+  const f = state.furniture.find(x => x.id === furnitureId);
+  f.rot = ((f.rot || 0) + 45) % 360;
+  persist(); closeQuickMenu(); render();
+}
+function addDrawerQuick(furnitureId){
+  pushUndo();
+  const f = state.furniture.find(x => x.id === furnitureId);
+  f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), products: [] });
+  persist(); closeQuickMenu(); render();
+}
+function enableRotate(handle, el, f){
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    pushUndo();
+    const mapRect = mapEl.getBoundingClientRect();
+    const centerX = mapRect.left + (f.x + f.w/2)/100*mapRect.width;
+    const centerY = mapRect.top + (f.y + f.h/2)/100*mapRect.height;
+    const halfW = (f.w/100)*mapRect.width/2;
+    const halfH = (f.h/100)*mapRect.height/2;
+    const baseAngle = Math.atan2(halfH, halfW) * 180/Math.PI;
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      const dx = ev.clientX - centerX, dy = ev.clientY - centerY;
+      const angle = Math.atan2(dy, dx) * 180/Math.PI;
+      let raw = ((angle - baseAngle) % 360 + 360) % 360;
+      f.rot = Math.round(raw/45)*45 % 360;
+      el.style.transform = `rotate(${f.rot}deg)`;
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      persist(); render();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+}
+
+function openSheet(html){
+  sheet.innerHTML = html;
+  sheet.classList.add('open');
+  sheetOverlay.classList.add('open');
+}
+function closeSheet(){
+  sheet.classList.remove('open');
+  sheetOverlay.classList.remove('open');
+  selectedFurnitureId = null;
+  render();
+}
+sheetOverlay.addEventListener('click', closeSheet);
+
+// --- VIEW: contents of one drawer / hanger ---
+function productLabel(p){ return typeof p === 'string' ? p : p.name; }
+function productImage(p){ return (p && typeof p === 'object') ? p.image : null; }
+
+function openViewSheet(furnitureId, drawerId){
+  const f = state.furniture.find(x => x.id === furnitureId);
+  const d = f.drawers.find(x => x.id === drawerId);
+  let items = d.products.map((p,i) => `
+    <div class="rowItem">
+      ${productImage(p) ? `<img class="prodThumb" src="${productImage(p)}">` : ''}
+      <span style="flex:1;">${productLabel(p)}</span>
+      <button class="del" data-idx="${i}">Quitar</button>
+    </div>`
+  ).join('') || '<div class="small">Vacío.</div>';
+  openSheet(`
+    <div class="sheetHeader"><h2>${f.name} — ${d.name}</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
+    <div id="productList">${items}</div>
+    <div class="searchWrap">
+      <input type="text" id="productSearchInput" placeholder="Buscar en Koroshi... (ej: 2622JA)" autocomplete="off">
+      <div id="searchResults" class="searchResults"></div>
+      <div id="searchStatus" class="small"></div>
+    </div>
+  `);
+  sheet.querySelectorAll('[data-idx]').forEach(b => {
+    b.addEventListener('click', () => {
+      pushUndo();
+      d.products.splice(Number(b.dataset.idx), 1);
+      persist();
+      openViewSheet(furnitureId, drawerId);
+    });
+  });
+
+  const searchInput = document.getElementById('productSearchInput');
+  const resultsEl = document.getElementById('searchResults');
+  const statusEl = document.getElementById('searchStatus');
+  let debounceTimer = null;
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim();
+    resultsEl.innerHTML = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    if (q.length < 2) { statusEl.textContent = ''; return; }
+    statusEl.textContent = 'Buscando...';
+    debounceTimer = setTimeout(async () => {
+      try {
+        const products = await searchKoroshi(q);
+        statusEl.textContent = products.length ? '' : 'Sin resultados.';
+        resultsEl.innerHTML = products.map((p,i) => `
+          <div class="searchResultItem" data-i="${i}">
+            <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
+            <span>${p.title}</span>
+          </div>`).join('');
+        resultsEl.querySelectorAll('[data-i]').forEach(el => {
+          el.addEventListener('click', () => {
+            pushUndo();
+            const p = products[Number(el.dataset.i)];
+            d.products.push({ name: p.title, image: p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '' });
+            persist();
+            openViewSheet(furnitureId, drawerId);
+          });
+        });
+      } catch (err) {
+        statusEl.textContent = 'No se pudo conectar con Koroshi (' + err.message + ').';
+      }
+    }, 350);
+  });
+}
+
+// --- EDIT: rename, manage drawers + edge (tables), delete ---
+function openEditSheet(furnitureId){
+  const f = state.furniture.find(x => x.id === furnitureId);
+  const isTable = f.type === 'table';
+
+  let tableSection = '';
+  if (isTable) {
+    let rows = f.drawers.map(d => `
+      <div class="rowItem">
+        <input class="crateNameInput" type="text" value="${d.name}" data-crate="${d.id}">
+        <button class="del" data-del-crate="${d.id}">Eliminar</button>
+      </div>`).join('');
+    tableSection = `
+      <div class="field">
+        <label>Lado de los cajones</label>
+        <select id="edgeSelect">
+          <option value="right" ${f.edge==='right'?'selected':''}>Derecha</option>
+          <option value="left" ${f.edge==='left'?'selected':''}>Izquierda</option>
+          <option value="top" ${f.edge==='top'?'selected':''}>Arriba</option>
+          <option value="bottom" ${f.edge==='bottom'?'selected':''}>Abajo</option>
+        </select>
+      </div>
+      <hr>
+      <h2 style="font-size:14px;">Cajones</h2>
+      ${rows}
+      <button class="btn-ghost" id="addCrateBtn" style="margin-top:8px;">+ Cajón</button>
+    `;
+  }
+
+  openSheet(`
+    <div class="sheetHeader">
+      <input type="text" id="renameInput" value="${f.name}">
+    </div>
+    <button class="btn-ghost" id="saveNameBtn">Guardar nombre</button>
+    ${tableSection}
+    <hr>
+    <button class="del" id="deleteFurnitureBtn" style="width:100%;padding:10px;">Eliminar mueble</button>
+  `);
+
+  document.getElementById('saveNameBtn').addEventListener('click', () => {
+    pushUndo();
+    f.name = document.getElementById('renameInput').value.trim() || f.name;
+    if (f.drawers.length === 1) f.drawers[0].name = f.name;
+    persist(); render(); openEditSheet(furnitureId);
+  });
+
+  if (isTable) {
+    document.getElementById('edgeSelect').addEventListener('change', (e) => {
+      pushUndo();
+      f.edge = e.target.value;
+      persist(); render();
+    });
+    sheet.querySelectorAll('[data-crate]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        pushUndo();
+        const d = f.drawers.find(x => x.id === inp.dataset.crate);
+        d.name = inp.value.trim() || d.name;
+        persist(); render();
+      });
+    });
+    sheet.querySelectorAll('[data-del-crate]').forEach(b => {
+      b.addEventListener('click', () => {
+        if (f.drawers.length <= 1) return;
+        pushUndo();
+        f.drawers = f.drawers.filter(d => d.id !== b.dataset.delCrate);
+        persist(); render(); openEditSheet(furnitureId);
+      });
+    });
+    document.getElementById('addCrateBtn').addEventListener('click', () => {
+      pushUndo();
+      f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), products: [] });
+      persist(); render(); openEditSheet(furnitureId);
+    });
+  }
+
+  document.getElementById('deleteFurnitureBtn').addEventListener('click', () => {
+    pushUndo();
+    state.furniture = state.furniture.filter(x => x.id !== furnitureId);
+    persist(); closeSheet();
+  });
+}
+
+// --- Add fixture: type picker ---
+addFurnitureBtn.addEventListener('click', () => {
+  const hasCounter = state.furniture.some(x => x.type === 'counter');
+  openSheet(`
+    <div class="sheetHeader"><h2>Añadir mueble</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
+    <div class="typeChoice">
+      <button class="btn-ghost" data-type="table">▭ Mesa</button>
+      ${hasCounter ? '<button class="btn-ghost" disabled style="opacity:.5;">▭ Mostrador (ya existe)</button>' : '<button class="btn-ghost" data-type="counter">▭ Mostrador</button>'}
+      <button class="btn-ghost" data-type="hanger-t">▯ Percha en T</button>
+      <button class="btn-ghost" data-type="hanger-round">◯ Percha redonda</button>
+    </div>
+  `);
+  sheet.querySelectorAll('[data-type]').forEach(b => {
+    b.addEventListener('click', () => {
+      if (b.dataset.type === 'counter' && state.furniture.some(x => x.type === 'counter')) return;
+      pushUndo();
+      const f = newFixture(b.dataset.type);
+      state.furniture.push(f);
+      persist();
+      selectedFurnitureId = f.id;
+      render();
+      openEditSheet(f.id);
+    });
+  });
+});
+
+render();
+</script>
+</body>
+</html>

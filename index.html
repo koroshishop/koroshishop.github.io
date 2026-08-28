@@ -670,16 +670,20 @@ function openViewSheet(furnitureId, drawerId){
       try {
         const products = await searchKoroshi(q);
         statusEl.textContent = products.length ? '' : 'Sin resultados.';
-        resultsEl.innerHTML = products.map((p,i) => `
+        resultsEl.innerHTML = products.map((p,i) => {
+          const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? p.variants[0].sku : '';
+          return `
           <div class="searchResultItem" data-i="${i}">
             <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
-            <span>${p.title}</span>
-          </div>`).join('');
+            <span>${p.title}${sku ? ' <span style="color:#6b7280;font-size:11px;">(' + sku + ')</span>' : ''}</span>
+          </div>`;
+        }).join('');
         resultsEl.querySelectorAll('[data-i]').forEach(el => {
           el.addEventListener('click', () => {
             pushUndo();
             const p = products[Number(el.dataset.i)];
-            d.products.push({ name: p.title, image: p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '' });
+            const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? p.variants[0].sku : '';
+            d.products.push({ name: p.title + (sku ? ' (' + sku + ')' : ''), image: p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '' });
             persist();
             openViewSheet(furnitureId, drawerId);
           });

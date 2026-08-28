@@ -342,19 +342,12 @@ function render(){
     el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; } selectedFurnitureId = f.id; quickMenuOpenFor = f.id; render(); });
 
     if (isSelected) {
-      if (f.type === 'hanger-round') {
-        const handleR = document.createElement('div');
-        handleR.className = 'resize-right';
-        el.appendChild(handleR);
-        enableResizeEdge(handleR, el, f, 'right');
-      } else {
-        ['right','left','top','bottom'].forEach(edge => {
-          const h = document.createElement('div');
-          h.className = 'resize-' + edge;
-          el.appendChild(h);
-          enableResizeEdge(h, el, f, edge);
-        });
-      }
+      ['right','left','top','bottom'].forEach(edge => {
+        const h = document.createElement('div');
+        h.className = 'resize-' + edge;
+        el.appendChild(h);
+        enableResizeEdge(h, el, f, edge);
+      });
 
       const rotHandle = document.createElement('div');
       rotHandle.className = 'rotate-handle';
@@ -501,6 +494,7 @@ function enableResizeEdge(handle, el, f, edge){
         if (f.type === 'hanger-round') newH = newW * MAP_ASPECT;
       } else {
         newH = snap(Math.max(MIN_SIZE, sign*localY));
+        if (f.type === 'hanger-round') newW = newH / MAP_ASPECT;
       }
       const centerOffsetLocal = axis === 'w' ? { x:sign*newW/2, y:0 } : { x:0, y:sign*newH/2 };
       const newCenter = {

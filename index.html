@@ -124,6 +124,10 @@
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 8 8 8"/></svg>
     </button>
     <button id="addFurnitureBtn" class="btn-ghost">+ Mueble</button>
+    <button id="saveCloudBtn" class="btn-primary" style="display:flex; align-items:center; gap:6px;">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Guardar
+    </button>
   </div>
 </header>
 
@@ -186,10 +190,15 @@ function selectOnly(id){ selectedIds = new Set([id]); }
 function toggleSelect(id){ if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); }
 function clearSelection(){ selectedIds = new Set(); }
 
+let remoteVersion = 0;
+let localDirtySinceLoad = false;
+const sessionPasswords = {}; // store code -> password, kept only for this browser tab session
+
 const mapEl = document.getElementById('map');
 const addFurnitureBtn = document.getElementById('addFurnitureBtn');
 const undoBtn = document.getElementById('undoBtn');
 undoBtn.addEventListener('click', undo);
+const saveCloudBtn = document.getElementById('saveCloudBtn');
 const sheet = document.getElementById('sheet');
 const sheetOverlay = document.getElementById('sheetOverlay');
 
@@ -216,9 +225,12 @@ storeSelect.addEventListener('change', () => {
   clearSelection();
   quickMenuOpenFor = null;
   undoStack = [];
+  remoteVersion = 0;
+  localDirtySinceLoad = false;
   sheet.classList.remove('open');
   sheetOverlay.classList.remove('open');
   render();
+  loadFromCloud(currentStore);
 });
 
 function persist(){ localStorage.setItem(storageKeyFor(currentStore), JSON.stringify(state)); }
@@ -228,6 +240,7 @@ let undoStack = [];
 function pushUndo(){
   undoStack.push(JSON.stringify(state.furniture));
   if (undoStack.length > 50) undoStack.shift();
+  localDirtySinceLoad = true;
 }
 function undo(){
   if (!undoStack.length) return;
@@ -247,6 +260,59 @@ document.addEventListener('keydown', (e) => {
 });
 
 const KOROSHI_PROXY_URL = 'https://koroshishop.linkgarcia93.workers.dev';
+const CLOUD_API_URL = KOROSHI_PROXY_URL; // same Worker also serves /store/<code>
+
+async function loadFromCloud(code){
+  try {
+    const res = await fetch(`${CLOUD_API_URL}/store/${code}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (localDirtySinceLoad) return; // user already started editing while this was loading — don't clobber
+    remoteVersion = data.version || 0;
+    if (data.furniture) {
+      state.furniture = data.furniture;
+      persist();
+      render();
+    }
+  } catch (err) {
+    // offline or Worker unreachable — keep whatever's already loaded locally
+  }
+}
+
+async function saveToCloud(code){
+  let password = sessionPasswords[code];
+  if (!password) {
+    password = prompt('Contraseña para guardar cambios en ' + code + ':');
+    if (!password) return;
+  }
+  try {
+    const res = await fetch(`${CLOUD_API_URL}/store/${code}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, baseVersion: remoteVersion, furniture: state.furniture })
+    });
+    const data = await res.json();
+    if (res.status === 401) {
+      alert('Contraseña incorrecta.');
+      delete sessionPasswords[code];
+      return;
+    }
+    if (res.status === 409) {
+      alert('Alguien más guardó cambios en ' + code + ' después de que cargaste esta página. Cambia a otra tienda y vuelve para recargar los datos más recientes antes de guardar de nuevo.');
+      return;
+    }
+    if (!res.ok) {
+      alert('No se pudo guardar (' + (data.error || res.status) + ').');
+      return;
+    }
+    sessionPasswords[code] = password;
+    remoteVersion = data.version;
+    localDirtySinceLoad = false;
+    alert('Guardado en la nube.');
+  } catch (err) {
+    alert('No se pudo conectar con el servidor (' + err.message + ').');
+  }
+}
 
 let koroshiSearchAbort = null;
 async function searchKoroshi(query){
@@ -973,7 +1039,10 @@ addFurnitureBtn.addEventListener('click', () => {
   });
 });
 
+saveCloudBtn.addEventListener('click', () => saveToCloud(currentStore));
+
 render();
+loadFromCloud(currentStore);
 </script>
 </body>
 </html>

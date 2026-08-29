@@ -284,15 +284,16 @@ async function loadFromCloud(code){
   }
 }
 
-async function saveToCloud(code){
+async function saveToCloud(code, forcing){
   const ok = await verifyPasswordFor(code);
   if (!ok) return;
   const password = sessionPasswords[code];
+  const baseVersionSent = remoteVersion;
   try {
     const res = await fetch(`${CLOUD_API_URL}/store/${code}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password, baseVersion: remoteVersion, furniture: state.furniture })
+      body: JSON.stringify({ password, baseVersion: baseVersionSent, furniture: state.furniture })
     });
     const data = await res.json();
     if (res.status === 401) {
@@ -301,7 +302,15 @@ async function saveToCloud(code){
       return;
     }
     if (res.status === 409) {
-      alert('Alguien más guardó cambios en ' + code + ' después de cargar la página. Cambia a otra tienda y vuelve para recargar los datos más recientes antes de guardar de nuevo.');
+      const serverVersion = data.current ? data.current.version : '?';
+      const wantForce = confirm(
+        'Alguien más guardó cambios en ' + code + ' (tu versión: ' + baseVersionSent + ', versión en el servidor: ' + serverVersion + ').\n\n' +
+        'Aceptar = sobrescribir con tus cambios actuales de todas formas.\nCancelar = no guardar, recargar primero.'
+      );
+      if (wantForce) {
+        remoteVersion = data.current ? data.current.version : remoteVersion;
+        return saveToCloud(code, true);
+      }
       return;
     }
     if (!res.ok) {

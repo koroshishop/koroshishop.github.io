@@ -324,8 +324,9 @@ async function saveToCloud(code, forcing){
   } catch (err) {
     alert('No se pudo conectar con el servidor (' + err.message + ').');
   }
+}
 
-  async function verifyPasswordFor(code){
+async function verifyPasswordFor(code){
   if (sessionPasswords[code]) return true;
   let attempts = 0;
   while (attempts < 3) {
@@ -351,7 +352,6 @@ async function saveToCloud(code, forcing){
     }
   }
   return false;
-}
 }
 
 let koroshiSearchAbort = null;

@@ -272,8 +272,8 @@ async function loadFromCloud(code){
     const res = await fetch(`${CLOUD_API_URL}/store/${code}`);
     if (!res.ok) return;
     const data = await res.json();
-    if (localDirtySinceLoad) return; // user already started editing while this was loading — don't clobber
-    remoteVersion = data.version || 0;
+    remoteVersion = data.version || 0; // always track the real server version, even mid-edit
+    if (localDirtySinceLoad) return; // but don't overwrite furniture the user already started changing
     if (data.furniture) {
       state.furniture = data.furniture;
       persist();

@@ -230,8 +230,13 @@ storeSelect.addEventListener('change', () => {
   sheet.classList.remove('open');
   sheetOverlay.classList.remove('open');
   render();
-  loadFromCloud(currentStore);
+  switchToStore(currentStore);
 });
+
+async function switchToStore(code){
+  await verifyPasswordFor(code);
+  loadFromCloud(code);
+}
 
 function persist(){ localStorage.setItem(storageKeyFor(currentStore), JSON.stringify(state)); }
 function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
@@ -280,11 +285,9 @@ async function loadFromCloud(code){
 }
 
 async function saveToCloud(code){
-  let password = sessionPasswords[code];
-  if (!password) {
-    password = prompt('Contraseña para guardar cambios en ' + code + ':');
-    if (!password) return;
-  }
+  const ok = await verifyPasswordFor(code);
+  if (!ok) return;
+  const password = sessionPasswords[code];
   try {
     const res = await fetch(`${CLOUD_API_URL}/store/${code}`, {
       method: 'POST',
@@ -312,6 +315,34 @@ async function saveToCloud(code){
   } catch (err) {
     alert('No se pudo conectar con el servidor (' + err.message + ').');
   }
+
+  async function verifyPasswordFor(code){
+  if (sessionPasswords[code]) return true;
+  let attempts = 0;
+  while (attempts < 3) {
+    const pw = prompt('Contraseña para ' + code + ':');
+    if (pw === null) return false; // user cancelled
+    if (!pw) { attempts++; continue; }
+    try {
+      const res = await fetch(`${CLOUD_API_URL}/store/${code}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        sessionPasswords[code] = pw;
+        return true;
+      }
+      alert('Contraseña incorrecta.');
+      attempts++;
+    } catch (err) {
+      alert('No se pudo conectar con el servidor (' + err.message + ').');
+      return false;
+    }
+  }
+  return false;
+}
 }
 
 let koroshiSearchAbort = null;
@@ -1042,7 +1073,7 @@ addFurnitureBtn.addEventListener('click', () => {
 saveCloudBtn.addEventListener('click', () => saveToCloud(currentStore));
 
 render();
-loadFromCloud(currentStore);
+switchToStore(currentStore);
 </script>
 </body>
 </html>

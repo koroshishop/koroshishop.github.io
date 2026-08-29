@@ -301,7 +301,7 @@ async function saveToCloud(code){
       return;
     }
     if (res.status === 409) {
-      alert('Alguien más guardó cambios en ' + code + ' después de que cargaste esta página. Cambia a otra tienda y vuelve para recargar los datos más recientes antes de guardar de nuevo.');
+      alert('Alguien más guardó cambios en ' + code + ' después de cargar la página. Cambia a otra tienda y vuelve para recargar los datos más recientes antes de guardar de nuevo.');
       return;
     }
     if (!res.ok) {
@@ -657,6 +657,22 @@ const EDGE_SIGN = { right:1, left:-1, bottom:1, top:-1 };
 const EDGE_AXIS = { right:'w', left:'w', bottom:'h', top:'h' };
 function axis0For(edge){ return EDGE_AXIS[edge]; }
 
+// Drawers stay physically attached to the table and rotate with it (canonical edge, stored).
+// These convert between that stored edge and whichever side it currently LOOKS like on screen,
+// so the edit menu always shows/accepts the edge you actually see, not the pre-rotation one.
+const EDGE_ANGLES = { right:0, bottom:90, left:180, top:270 };
+const ANGLE_EDGES = { 0:'right', 90:'bottom', 180:'left', 270:'top' };
+function visualEdgeFor(canonicalEdge, rot){
+  let angle = ((EDGE_ANGLES[canonicalEdge] + (rot || 0)) % 360 + 360) % 360;
+  angle = Math.round(angle / 90) * 90 % 360;
+  return ANGLE_EDGES[angle];
+}
+function canonicalEdgeFor(visualEdge, rot){
+  let angle = ((EDGE_ANGLES[visualEdge] - (rot || 0)) % 360 + 360) % 360;
+  angle = Math.round(angle / 90) * 90 % 360;
+  return ANGLE_EDGES[angle];
+}
+
 function enableResizeEdge(handle, el, f, edge){
   handle.addEventListener('pointerdown', (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -728,7 +744,7 @@ function rotateFixture(furnitureId){
 function addDrawerQuick(furnitureId){
   pushUndo();
   const f = state.furniture.find(x => x.id === furnitureId);
-  f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), edge:'right', products: [] });
+  f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), edge:canonicalEdgeFor('right', f.rot), products: [] });
   persist(); closeQuickMenu(); render();
 }
 
@@ -967,15 +983,15 @@ function openEditSheet(furnitureId){
   let tableSection = '';
   if (isTable) {
     let rows = f.drawers.map(d => {
-      const edge = d.edge || 'right';
+      const visEdge = visualEdgeFor(d.edge || 'right', f.rot);
       return `
       <div class="rowItem">
         <input class="crateNameInput" type="text" value="${d.name}" data-crate="${d.id}">
         <select class="edgeSelectSmall" data-crate-edge="${d.id}">
-          <option value="right" ${edge==='right'?'selected':''}>Derecha</option>
-          <option value="left" ${edge==='left'?'selected':''}>Izquierda</option>
-          <option value="top" ${edge==='top'?'selected':''}>Arriba</option>
-          <option value="bottom" ${edge==='bottom'?'selected':''}>Abajo</option>
+          <option value="right" ${visEdge==='right'?'selected':''}>Derecha</option>
+          <option value="left" ${visEdge==='left'?'selected':''}>Izquierda</option>
+          <option value="top" ${visEdge==='top'?'selected':''}>Arriba</option>
+          <option value="bottom" ${visEdge==='bottom'?'selected':''}>Abajo</option>
         </select>
         <button class="del" data-del-crate="${d.id}">Eliminar</button>
       </div>`;
@@ -1010,7 +1026,7 @@ function openEditSheet(furnitureId){
       sel.addEventListener('change', () => {
         pushUndo();
         const d = f.drawers.find(x => x.id === sel.dataset.crateEdge);
-        d.edge = sel.value;
+        d.edge = canonicalEdgeFor(sel.value, f.rot);
         persist(); render(); openEditSheet(furnitureId);
       });
     });
@@ -1024,7 +1040,6 @@ function openEditSheet(furnitureId){
     });
     sheet.querySelectorAll('[data-del-crate]').forEach(b => {
       b.addEventListener('click', () => {
-        if (f.drawers.length <= 1) return;
         pushUndo();
         f.drawers = f.drawers.filter(d => d.id !== b.dataset.delCrate);
         persist(); render(); openEditSheet(furnitureId);
@@ -1032,7 +1047,7 @@ function openEditSheet(furnitureId){
     });
     document.getElementById('addCrateBtn').addEventListener('click', () => {
       pushUndo();
-      f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), edge:'right', products: [] });
+      f.drawers.push({ id: uid('d'), name: 'Cajón ' + (f.drawers.length + 1), edge:canonicalEdgeFor('right', f.rot), products: [] });
       persist(); render(); openEditSheet(furnitureId);
     });
   }

@@ -25,6 +25,10 @@
 
   .furniture { position:absolute; user-select:none; transform-origin:center center; }
   .furniture.selected { outline:2px dashed #f59e0b; outline-offset:2px; }
+  .selectionBox { position:absolute; border:1.5px dashed #2563eb; background:rgba(37,99,235,0.08); z-index:8; pointer-events:none; }
+  .groupToolbar { position:absolute; top:8px; left:50%; transform:translateX(-50%); display:flex; gap:6px; background:#111; border-radius:8px; padding:6px; box-shadow:0 4px 12px rgba(0,0,0,.3); z-index:9; }
+  .groupToolbar button { background:#fff; color:#111; font-size:12px; padding:6px 10px; }
+  .groupToolbar button.danger { background:#fee2e2; color:#b91c1c; }
 
   .move-handle { position:absolute; left:50%; top:50%; width:26px; height:26px; margin-left:-13px; margin-top:-13px; border-radius:50%; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; cursor:move; z-index:4; touch-action:none; }
   .move-handle svg { width:16px; height:16px; }
@@ -94,6 +98,8 @@
   .searchResultItem { display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid #eee; cursor:pointer; }
   .searchResultItem:last-child { border-bottom:none; }
   .searchResultItem:active { background:#f3f4f6; }
+  .searchResultItem.disabled { opacity:.5; cursor:default; }
+  .searchResultItem .dupNote { display:block; font-size:10px; color:#b91c1c; }
   .searchResultItem img { width:34px; height:34px; object-fit:cover; border-radius:4px; flex-shrink:0; background:#f0f0f0; }
   .field { margin-top:10px; }
   .edgeSelectSmall { width:auto !important; flex-shrink:0; padding:6px; font-size:12px; }
@@ -169,11 +175,16 @@ state.furniture.forEach(f => {
 });
 localStorage.setItem(storageKeyFor(currentStore), JSON.stringify(state));
 
-let selectedFurnitureId = null;
+let selectedIds = new Set();
 let quickMenuOpenFor = null;
 let pendingClickTimer = null;
-let clipboardFixture = null;
+let clipboardFixtures = null; // array of copied fixtures, or null
 let mapContextMenuAt = null; // {x, y} in map %, or null
+
+function isSelected(id){ return selectedIds.has(id); }
+function selectOnly(id){ selectedIds = new Set([id]); }
+function toggleSelect(id){ if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); }
+function clearSelection(){ selectedIds = new Set(); }
 
 const mapEl = document.getElementById('map');
 const addFurnitureBtn = document.getElementById('addFurnitureBtn');
@@ -202,7 +213,7 @@ storeSelect.addEventListener('change', () => {
   localStorage.setItem(CURRENT_STORE_KEY, currentStore);
   state = JSON.parse(localStorage.getItem(storageKeyFor(currentStore)) || 'null') || seedState();
   updateBadge();
-  selectedFurnitureId = null;
+  clearSelection();
   quickMenuOpenFor = null;
   undoStack = [];
   sheet.classList.remove('open');
@@ -221,7 +232,7 @@ function pushUndo(){
 function undo(){
   if (!undoStack.length) return;
   state.furniture = JSON.parse(undoStack.pop());
-  selectedFurnitureId = null;
+  clearSelection();
   quickMenuOpenFor = null;
   persist();
   sheet.classList.remove('open');
@@ -269,9 +280,9 @@ function render(){
   mapEl.innerHTML = '';
   state.furniture.forEach(f => {
     const el = document.createElement('div');
-    const isSelected = selectedFurnitureId === f.id;
+    const selHere = isSelected(f.id);
     const isFilled = f.type === 'counter' && f.drawers[0] && f.drawers[0].products.length;
-    el.className = 'furniture ' + f.type + (isSelected ? ' selected' : '') + (isFilled ? ' filled' : '');
+    el.className = 'furniture ' + f.type + (selHere ? ' selected' : '') + (isFilled ? ' filled' : '');
     el.style.left = f.x + '%';
     el.style.top = f.y + '%';
     el.style.width = f.w + '%';
@@ -300,7 +311,8 @@ function render(){
       });
       el.addEventListener('click', (e) => {
         if (e.target.closest('.drawerTick, .move-handle, .resize-right, .resize-left, .resize-top, .resize-bottom, .rotate-handle, .quickBubble, .quickMenu')) return;
-        selectedFurnitureId = (selectedFurnitureId === f.id) ? null : f.id;
+        if (e.ctrlKey || e.metaKey) { toggleSelect(f.id); }
+        else { (selectedIds.has(f.id) && selectedIds.size === 1) ? clearSelection() : selectOnly(f.id); }
         quickMenuOpenFor = null;
         render();
       });
@@ -312,7 +324,8 @@ function render(){
       el.appendChild(span);
       el.addEventListener('click', (e) => {
         if (e.target.closest('.move-handle, .resize-right, .resize-left, .resize-top, .resize-bottom, .rotate-handle, .quickBubble, .quickMenu')) return;
-        selectedFurnitureId = (selectedFurnitureId === f.id) ? null : f.id;
+        if (e.ctrlKey || e.metaKey) { toggleSelect(f.id); }
+        else { (selectedIds.has(f.id) && selectedIds.size === 1) ? clearSelection() : selectOnly(f.id); }
         quickMenuOpenFor = null;
         render();
       });
@@ -324,6 +337,13 @@ function render(){
       el.appendChild(span);
       el.addEventListener('click', (e) => {
         if (e.target.closest('.move-handle, .resize-right, .resize-left, .resize-top, .resize-bottom, .rotate-handle, .quickBubble, .quickMenu')) return;
+        if (e.ctrlKey || e.metaKey) {
+          if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; }
+          toggleSelect(f.id);
+          quickMenuOpenFor = null;
+          render();
+          return;
+        }
         if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; return; }
         pendingClickTimer = setTimeout(() => {
           pendingClickTimer = null;
@@ -338,10 +358,10 @@ function render(){
     el.appendChild(moveHandle);
     enableDrag(moveHandle, el, f);
 
-    el.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; } selectedFurnitureId = f.id; quickMenuOpenFor = f.id; render(); });
-    el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; } selectedFurnitureId = f.id; quickMenuOpenFor = f.id; render(); });
+    el.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; } selectOnly(f.id); quickMenuOpenFor = f.id; render(); });
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (pendingClickTimer) { clearTimeout(pendingClickTimer); pendingClickTimer = null; } selectOnly(f.id); quickMenuOpenFor = f.id; render(); });
 
-    if (isSelected) {
+    if (selectedIds.size === 1 && selHere) {
       ['right','left','top','bottom'].forEach(edge => {
         const h = document.createElement('div');
         h.className = 'resize-' + edge;
@@ -375,7 +395,7 @@ function render(){
         items.push(['Eliminar', () => {
           pushUndo();
           state.furniture = state.furniture.filter(x => x.id !== f.id);
-          selectedFurnitureId = null; persist(); closeQuickMenu(); render();
+          clearSelection(); persist(); closeQuickMenu(); render();
         }]);
         items.forEach(([label, fn]) => {
           const b = document.createElement('button');
@@ -398,7 +418,7 @@ function render(){
     menu.style.top = mapContextMenuAt.y + '%';
     const items = [
       ['Nuevo mueble', () => { closeMapContextMenu(); addFurnitureBtn.click(); }],
-      ['Pegar', clipboardFixture ? () => pasteFixtureAt(mapContextMenuAt.x, mapContextMenuAt.y) : null]
+      ['Pegar', (clipboardFixtures && clipboardFixtures.length) ? () => pasteFixturesAt(mapContextMenuAt.x, mapContextMenuAt.y) : null]
     ];
     items.forEach(([label, fn]) => {
       const b = document.createElement('button');
@@ -409,13 +429,82 @@ function render(){
     });
     mapEl.appendChild(menu);
   }
+
+  if (selectedIds.size >= 2) {
+    const bar = document.createElement('div');
+    bar.className = 'groupToolbar';
+    const mk = (label, fn, danger) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      if (danger) b.className = 'danger';
+      b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+      return b;
+    };
+    bar.appendChild(mk('Copiar (' + selectedIds.size + ')', copySelection));
+    bar.appendChild(mk('Duplicar', duplicateSelection));
+    bar.appendChild(mk('Eliminar', deleteSelection, true));
+    bar.appendChild(mk('Cancelar', () => { clearSelection(); render(); }));
+    mapEl.appendChild(bar);
+  }
 }
 
 function closeMapContextMenu(){ mapContextMenuAt = null; }
 
+function fixturesInRect(x1, y1, x2, y2){
+  const left = Math.min(x1,x2), right = Math.max(x1,x2);
+  const top = Math.min(y1,y2), bottom = Math.max(y1,y2);
+  return state.furniture.filter(f => {
+    const fLeft = f.x, fRight = f.x + f.w, fTop = f.y, fBottom = f.y + f.h;
+    return fLeft < right && fRight > left && fTop < bottom && fBottom > top;
+  }).map(f => f.id);
+}
+
+mapEl.addEventListener('pointerdown', (e) => {
+  if (e.target !== mapEl) return;
+  if (e.button !== undefined && e.button !== 0) return;
+  const rect = mapEl.getBoundingClientRect();
+  const startX = (e.clientX - rect.left) / rect.width * 100;
+  const startY = (e.clientY - rect.top) / rect.height * 100;
+  let dragging = false;
+  let boxEl = null;
+  const ctrlHeld = e.ctrlKey || e.metaKey;
+  const move = (ev) => {
+    const curX = (ev.clientX - rect.left) / rect.width * 100;
+    const curY = (ev.clientY - rect.top) / rect.height * 100;
+    if (!dragging && (Math.abs(curX - startX) > 1 || Math.abs(curY - startY) > 1)) {
+      dragging = true;
+      boxEl = document.createElement('div');
+      boxEl.className = 'selectionBox';
+      mapEl.appendChild(boxEl);
+    }
+    if (dragging && boxEl) {
+      const left = Math.min(startX, curX), top = Math.min(startY, curY);
+      const w = Math.abs(curX - startX), h = Math.abs(curY - startY);
+      boxEl.style.left = left + '%'; boxEl.style.top = top + '%';
+      boxEl.style.width = w + '%'; boxEl.style.height = h + '%';
+    }
+  };
+  const up = (ev) => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    if (dragging) {
+      const curX = (ev.clientX - rect.left) / rect.width * 100;
+      const curY = (ev.clientY - rect.top) / rect.height * 100;
+      const hitIds = fixturesInRect(startX, startY, curX, curY);
+      if (ctrlHeld) { hitIds.forEach(id => selectedIds.add(id)); }
+      else { selectedIds = new Set(hitIds); }
+      quickMenuOpenFor = null;
+      closeMapContextMenu();
+      render();
+    }
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+});
+
 mapEl.addEventListener('click', (e) => {
   if (e.target === mapEl) {
-    selectedFurnitureId = null;
+    clearSelection();
     quickMenuOpenFor = null;
     closeMapContextMenu();
     render();
@@ -428,7 +517,7 @@ mapEl.addEventListener('dblclick', (e) => {
   const rect = mapEl.getBoundingClientRect();
   const x = snap((e.clientX - rect.left) / rect.width * 100);
   const y = snap((e.clientY - rect.top) / rect.height * 100);
-  selectedFurnitureId = null;
+  clearSelection();
   quickMenuOpenFor = null;
   mapContextMenuAt = { x, y };
   render();
@@ -440,15 +529,22 @@ function enableDrag(handle, el, f){
     pushUndo();
     const rect = mapEl.getBoundingClientRect();
     const startX = e.clientX, startY = e.clientY;
-    const origX = f.x, origY = f.y;
+    const groupIds = (selectedIds.size > 1 && selectedIds.has(f.id)) ? Array.from(selectedIds) : [f.id];
+    const items = groupIds.map(id => {
+      const gf = state.furniture.find(x => x.id === id);
+      const gEl = mapEl.querySelector('[data-id="' + id + '"]');
+      return (gf && gEl) ? { gf, gEl, origX: gf.x, origY: gf.y } : null;
+    }).filter(Boolean);
     handle.setPointerCapture(e.pointerId);
     const move = (ev) => {
       const dxPct = (ev.clientX - startX) / rect.width * 100;
       const dyPct = (ev.clientY - startY) / rect.height * 100;
-      f.x = snap(Math.max(0, Math.min(100 - f.w, origX + dxPct)));
-      f.y = snap(Math.max(0, Math.min(100 - f.h, origY + dyPct)));
-      el.style.left = f.x + '%';
-      el.style.top = f.y + '%';
+      items.forEach(({gf, gEl, origX, origY}) => {
+        gf.x = snap(Math.max(0, Math.min(100 - gf.w, origX + dxPct)));
+        gf.y = snap(Math.max(0, Math.min(100 - gf.h, origY + dyPct)));
+        gEl.style.left = gf.x + '%';
+        gEl.style.top = gf.y + '%';
+      });
     };
     const up = () => {
       document.removeEventListener('pointermove', move);
@@ -545,40 +641,89 @@ function reidFixture(f){
   copy.drawers.forEach(d => { d.id = uid('d'); });
   return copy;
 }
+function hasCounterAmong(list){ return list.some(x => x.type === 'counter'); }
+
 function copyFixture(furnitureId){
   const f = state.furniture.find(x => x.id === furnitureId);
-  clipboardFixture = JSON.parse(JSON.stringify(f));
+  clipboardFixtures = [JSON.parse(JSON.stringify(f))];
   closeQuickMenu(); render();
 }
 function duplicateFixture(furnitureId){
   pushUndo();
   const f = state.furniture.find(x => x.id === furnitureId);
-  const copy = reidFixture(f);
-  if (f.type === 'counter' && state.furniture.some(x => x.type === 'counter')) {
+  if (f.type === 'counter' && hasCounterAmong(state.furniture)) {
     alert('Solo puede haber un Mostrador.');
     return;
   }
+  const copy = reidFixture(f);
   copy.x = snap(Math.min(100 - copy.w, f.x + 4));
   copy.y = snap(Math.min(100 - copy.h, f.y + 4));
   state.furniture.push(copy);
   persist();
-  selectedFurnitureId = copy.id;
+  selectOnly(copy.id);
   closeQuickMenu(); render();
 }
-function pasteFixtureAt(x, y){
-  if (!clipboardFixture) return;
-  if (clipboardFixture.type === 'counter' && state.furniture.some(f => f.type === 'counter')) {
+
+function copySelection(){
+  clipboardFixtures = Array.from(selectedIds)
+    .map(id => state.furniture.find(f => f.id === id))
+    .filter(Boolean)
+    .map(f => JSON.parse(JSON.stringify(f)));
+  render();
+}
+function duplicateSelection(){
+  const items = Array.from(selectedIds).map(id => state.furniture.find(f => f.id === id)).filter(Boolean);
+  if (!items.length) return;
+  if (items.some(f => f.type === 'counter') && hasCounterAmong(state.furniture)) {
+    alert('Solo puede haber un Mostrador.');
+    return;
+  }
+  pushUndo();
+  const newIds = [];
+  items.forEach(f => {
+    const copy = reidFixture(f);
+    copy.x = snap(Math.min(100 - copy.w, f.x + 4));
+    copy.y = snap(Math.min(100 - copy.h, f.y + 4));
+    state.furniture.push(copy);
+    newIds.push(copy.id);
+  });
+  persist();
+  selectedIds = new Set(newIds);
+  render();
+}
+function deleteSelection(){
+  if (!selectedIds.size) return;
+  pushUndo();
+  state.furniture = state.furniture.filter(f => !selectedIds.has(f.id));
+  clearSelection();
+  persist(); render();
+}
+
+function pasteFixturesAt(x, y){
+  if (!clipboardFixtures || !clipboardFixtures.length) return;
+  if (hasCounterAmong(clipboardFixtures) && hasCounterAmong(state.furniture)) {
     alert('Solo puede haber un Mostrador.');
     closeMapContextMenu(); render();
     return;
   }
   pushUndo();
-  const copy = reidFixture(clipboardFixture);
-  copy.x = snap(Math.max(0, Math.min(100 - copy.w, x - copy.w/2)));
-  copy.y = snap(Math.max(0, Math.min(100 - copy.h, y - copy.h/2)));
-  state.furniture.push(copy);
+  const minX = Math.min(...clipboardFixtures.map(f => f.x));
+  const minY = Math.min(...clipboardFixtures.map(f => f.y));
+  const maxX = Math.max(...clipboardFixtures.map(f => f.x + f.w));
+  const maxY = Math.max(...clipboardFixtures.map(f => f.y + f.h));
+  const groupW = maxX - minX, groupH = maxY - minY;
+  const targetLeft = Math.max(0, Math.min(100 - groupW, x - groupW/2));
+  const targetTop = Math.max(0, Math.min(100 - groupH, y - groupH/2));
+  const newIds = [];
+  clipboardFixtures.forEach(f => {
+    const copy = reidFixture(f);
+    copy.x = snap(targetLeft + (f.x - minX));
+    copy.y = snap(targetTop + (f.y - minY));
+    state.furniture.push(copy);
+    newIds.push(copy.id);
+  });
   persist();
-  selectedFurnitureId = copy.id;
+  selectedIds = new Set(newIds);
   closeMapContextMenu();
   render();
 }
@@ -618,7 +763,7 @@ function openSheet(html){
 function closeSheet(){
   sheet.classList.remove('open');
   sheetOverlay.classList.remove('open');
-  selectedFurnitureId = null;
+  clearSelection();
   render();
 }
 sheetOverlay.addEventListener('click', closeSheet);
@@ -626,6 +771,21 @@ sheetOverlay.addEventListener('click', closeSheet);
 // --- VIEW: contents of one drawer / hanger ---
 function productLabel(p){ return typeof p === 'string' ? p : p.name; }
 function productImage(p){ return (p && typeof p === 'object') ? p.image : null; }
+function extractProductKey(p){
+  const name = productLabel(p);
+  const m = name.match(/\(([^()]+)\)\s*$/);
+  return (m ? m[1] : name).trim().toLowerCase();
+}
+function findProductInStore(key){
+  for (const f of state.furniture){
+    for (const d of f.drawers){
+      for (const p of d.products){
+        if (extractProductKey(p) === key) return { furnitureId: f.id, drawerId: d.id };
+      }
+    }
+  }
+  return null;
+}
 
 function openViewSheet(furnitureId, drawerId){
   const f = state.furniture.find(x => x.id === furnitureId);
@@ -672,13 +832,20 @@ function openViewSheet(furnitureId, drawerId){
         statusEl.textContent = products.length ? '' : 'Sin resultados.';
         resultsEl.innerHTML = products.map((p,i) => {
           const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? p.variants[0].sku : '';
+          const key = (sku || p.title).trim().toLowerCase();
+          const existing = findProductInStore(key);
+          let dupNote = '', disabled = false;
+          if (existing) {
+            disabled = true;
+            dupNote = existing.drawerId === drawerId ? 'Ya está en este cajón' : 'Ya está en otro cajón';
+          }
           return `
-          <div class="searchResultItem" data-i="${i}">
+          <div class="searchResultItem${disabled ? ' disabled' : ''}" data-i="${i}" ${disabled ? 'data-disabled="1"' : ''}>
             <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
-            <span>${p.title}${sku ? ' <span style="color:#6b7280;font-size:11px;">(' + sku + ')</span>' : ''}</span>
+            <span>${p.title}${sku ? ' <span style="color:#6b7280;font-size:11px;">(' + sku + ')</span>' : ''}${dupNote ? '<span class="dupNote">' + dupNote + '</span>' : ''}</span>
           </div>`;
         }).join('');
-        resultsEl.querySelectorAll('[data-i]').forEach(el => {
+        resultsEl.querySelectorAll('[data-i]:not([data-disabled])').forEach(el => {
           el.addEventListener('click', () => {
             pushUndo();
             const p = products[Number(el.dataset.i)];
@@ -799,7 +966,7 @@ addFurnitureBtn.addEventListener('click', () => {
       const f = newFixture(b.dataset.type);
       state.furniture.push(f);
       persist();
-      selectedFurnitureId = f.id;
+      selectOnly(f.id);
       render();
       openEditSheet(f.id);
     });

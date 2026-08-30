@@ -9,19 +9,68 @@
   :root { --primary:#111111; --accent:#2563eb; --bg:#fafafa; --panel:#fff; --border:#e5e7eb; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); }
-  header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:10px 14px; background:var(--panel); border-bottom:1px solid #111; position:sticky; top:0; z-index:5; }
-  .titleWrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  header h1 { font-size:14px; margin:0; text-transform:uppercase; letter-spacing:0.08em; font-weight:800; color:#111; }
+  header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:0 14px 0 0; background:#111; position:sticky; top:0; z-index:5; }
+  .titleWrap { display:flex; align-items:center; gap:0; flex-wrap:wrap; }
+  .headerLogo { height:52px; width:52px; object-fit:contain; flex-shrink:0; padding:8px; box-sizing:border-box; filter:invert(1); }
+  header h1 { font-size:14px; margin:0; text-transform:uppercase; letter-spacing:0.08em; font-weight:800; color:#fff; padding:8px 4px; }
   .storeBadge { font-size:11px; font-weight:800; color:#fff; background:var(--accent); border-radius:4px; padding:2px 7px; letter-spacing:0.02em; white-space:nowrap; }
-  .storeSelectWrap { display:flex; align-items:center; gap:6px; }
-  .storeSelectWrap label { font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:#6b7280; }
+  .storeSelectWrap { display:flex; align-items:center; padding:10px 0 10px 10px; }
   #storeSelect { border:1px solid #111; border-radius:6px; padding:5px 8px; font-size:12px; font-weight:700; background:#fff; color:#111; }
-  header .actions { display:flex; gap:8px; }
+  header .actions { display:flex; gap:8px; align-items:center; padding:10px 0; }
+  .globalSearchWrap { position:relative; }
+  .globalSearchWrap input { padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; width:150px; }
+  .globalSearchResults:empty { display:none; }
+  .globalSearchResults { position:absolute; top:110%; left:0; width:260px; max-height:300px; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.2); z-index:20; }
+  .globalSearchResults .gsItem { display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid #eee; }
+  .globalSearchResults .gsItem:last-child { border-bottom:none; }
+  .globalSearchResults .gsItem img { width:30px; height:30px; object-fit:cover; border-radius:4px; background:#f0f0f0; flex-shrink:0; }
+  .globalSearchResults .gsInfo { flex:1; font-size:12px; }
+  .globalSearchResults .gsLoc { color:#2563eb; font-weight:600; }
+  .globalSearchResults .gsUnplaced { color:#b91c1c; }
+  .globalSearchResults .gsAssignBtn { background:#111; color:#fff; font-size:11px; padding:5px 8px; border-radius:6px; flex-shrink:0; }
+  .lightboxOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:50; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .lightboxOverlay img { max-width:100%; max-height:100%; border-radius:6px; }
+  .lightboxable { cursor:zoom-in; }
+  #welcomeOverlay { position:fixed; inset:0; background:#0a0a0a; z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .welcomeBox { max-width:360px; width:100%; text-align:center; }
+  .welcomeBox img { height:64px; width:64px; object-fit:contain; margin-bottom:18px; filter:invert(1); }
+  .welcomeBox h2 { font-size:20px; text-transform:uppercase; letter-spacing:0.12em; margin:0 0 6px; color:#fff; font-weight:800; }
+  .welcomeBox p { font-size:12px; color:#9ca3af; margin:0 0 28px; text-transform:uppercase; letter-spacing:0.06em; }
+  .welcomeBox label { display:block; font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.08em; text-align:left; margin-bottom:6px; }
+  .welcomeBox select { margin-top:6px; }
+  .welcomeBox select, .welcomeBox input[type=password] { background:#1a1a1a; border:1px solid #333; color:#fff; margin-bottom:16px; }
+  .welcomeBox select:focus, .welcomeBox input[type=password]:focus { outline:none; border-color:#fff; }
+  .welcomeBox button { width:100%; padding:13px; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; background:#fff; color:#111; }
+  .welcomeBox button:active { background:#e5e5e5; }
+  .welcomeError { color:#f87171; font-size:12px; margin:-8px 0 16px; min-height:16px; }
+  #pwModalOverlay { position:fixed; inset:0; background:rgba(10,10,10,0.9); z-index:110; display:none; align-items:center; justify-content:center; padding:20px; }
+  #pwModalOverlay.open { display:flex; }
+  .pwModalBox { background:#0a0a0a; border:1px solid #333; border-radius:14px; padding:28px 24px; max-width:320px; width:100%; text-align:center; }
+  .pwModalBox h2 { font-size:15px; text-transform:uppercase; letter-spacing:0.1em; margin:0 0 20px; color:#fff; font-weight:800; }
+  .pwModalBox input[type=password] { background:#1a1a1a; border:1px solid #333; color:#fff; margin-bottom:14px; }
+  .pwModalBox input[type=password]:focus { outline:none; border-color:#fff; }
+  .pwModalBox label { display:flex; align-items:center; gap:8px; font-size:12px; color:#9ca3af; margin-bottom:16px; cursor:pointer; }
+  .pwModalBox label input { width:auto; margin:0; }
+  .pwModalBox .pwModalError { color:#f87171; font-size:12px; margin:-6px 0 14px; min-height:16px; }
+  .pwModalBox .pwModalRow { display:flex; gap:8px; }
+  .pwModalBox button { flex:1; padding:11px; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; }
+  .pwModalBox .pwModalOk { background:#fff; color:#111; }
+  .pwModalBox .pwModalCancel { background:#1a1a1a; color:#fff; border:1px solid #333; }
   button { border:none; border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; }
   .btn-primary { background:var(--primary); color:#fff; }
   .btn-ghost { background:#e5e7eb; color:#111; }
   #mapWrap { padding:10px; }
-  #map { position:relative; width:100%; aspect-ratio:16/10; background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; touch-action:none; }
+  #map {
+    position:relative; width:100%; aspect-ratio:16/10;
+    background-color:#f5f5f6;
+    background-image:
+      linear-gradient(to right, rgba(37,99,235,0.15) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(37,99,235,0.15) 1px, transparent 1px),
+      linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
+    background-size: 8% 12.8%, 8% 12.8%, 2% 3.2%, 2% 3.2%;
+    border:1px solid var(--border); border-radius:10px; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none;
+  }
 
   .furniture { position:absolute; user-select:none; transform-origin:center center; }
   .furniture.selected { outline:2px dashed #f59e0b; outline-offset:2px; }
@@ -71,12 +120,16 @@
   .furniture.table.editing .drawerTick { pointer-events:none; opacity:.5; }
 
   /* HANGER T: thin rectangle */
-  .furniture.hanger-t { background:#7c3aed; border-radius:2px; display:flex; align-items:center; justify-content:center; }
-  .furniture.hanger-t span { writing-mode:vertical-rl; font-size:10px; color:#fff; }
+  .furniture.hanger-t { background:#fff; border:2px solid #7c3aed; border-radius:2px; display:flex; align-items:center; justify-content:center; }
+  .furniture.hanger-t span { writing-mode:vertical-rl; font-size:10px; color:#7c3aed; }
+  .furniture.hanger-t.filled { background:#7c3aed; }
+  .furniture.hanger-t.filled span { color:#fff; }
 
   /* HANGER ROUND: circle */
-  .furniture.hanger-round { background:#059669; border-radius:50%; display:flex; align-items:center; justify-content:center; }
-  .furniture.hanger-round span { font-size:10px; color:#fff; text-align:center; padding:2px; }
+  .furniture.hanger-round { background:#fff; border:2px solid #059669; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .furniture.hanger-round span { font-size:10px; color:#059669; text-align:center; padding:2px; }
+  .furniture.hanger-round.filled { background:#059669; }
+  .furniture.hanger-round.filled span { color:#fff; }
 
   #sheetOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; z-index:10; }
   #sheet { position:fixed; left:0; right:0; bottom:0; background:var(--panel); border-radius:14px 14px 0 0; max-height:75vh; overflow-y:auto; padding:14px; transform:translateY(100%); transition:transform .2s ease; z-index:11; }
@@ -88,7 +141,7 @@
   .rowItem:last-child { border-bottom:none; }
   .small { font-size:12px; color:#666; }
   .del { background:#fee2e2; color:#b91c1c; padding:6px 10px; font-size:12px; flex-shrink:0; }
-  input[type=text], select { width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; font-size:14px; }
+  input[type=text], input[type=password], select { width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; font-size:14px; }
   .crateNameInput { flex:1; border:1px solid var(--border); border-radius:6px; padding:6px; font-size:14px; }
   .addRow { display:flex; gap:6px; margin-top:10px; }
   .addRow input { flex:1; }
@@ -110,12 +163,43 @@
 </head>
 <body>
 
-<header>
+<div id="welcomeOverlay">
+  <div class="welcomeBox">
+    <img src="icon.png" alt="">
+    <h2>Mapa de tienda</h2>
+    <p>Selecciona tu tienda para continuar</p>
+    <select id="welcomeStoreSelect"></select>
+    <label for="welcomePasswordInput">Contraseña</label>
+    <input type="password" id="welcomePasswordInput" autocomplete="off">
+    <label style="display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:normal; font-size:12px; margin:-6px 0 16px; cursor:pointer;">
+      <input type="checkbox" id="welcomeRememberCheck" style="width:auto; margin:0;"> Recordar contraseña en este dispositivo
+    </label>
+    <div class="welcomeError" id="welcomeError"></div>
+    <button id="welcomeEnterBtn">Entrar</button>
+  </div>
+</div>
+
+<div id="pwModalOverlay">
+  <div class="pwModalBox">
+    <h2 id="pwModalTitle">Contraseña</h2>
+    <input type="password" id="pwModalInput" autocomplete="off">
+    <label>
+      <input type="checkbox" id="pwModalRememberCheck"> Recordar contraseña en este dispositivo
+    </label>
+    <div class="pwModalError" id="pwModalError"></div>
+    <div class="pwModalRow">
+      <button class="pwModalCancel" id="pwModalCancelBtn">Cancelar</button>
+      <button class="pwModalOk" id="pwModalOkBtn">Continuar</button>
+    </div>
+  </div>
+</div>
+
+<header style="display:none;" id="appHeader">
   <div class="titleWrap">
+    <img src="icon.png" alt="" class="headerLogo">
     <h1>Mapa de tienda</h1>
     <span id="storeBadge" class="storeBadge"></span>
     <div class="storeSelectWrap">
-      <label for="storeSelect">Seleccionar tienda</label>
       <select id="storeSelect"></select>
     </div>
   </div>
@@ -123,7 +207,12 @@
     <button id="undoBtn" class="btn-ghost" style="display:flex; align-items:center; gap:6px;">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 8 8 8"/></svg>
     </button>
+    <div class="globalSearchWrap">
+      <input type="text" id="globalSearchInput" placeholder="Buscar prenda..." autocomplete="off">
+      <div id="globalSearchResults" class="globalSearchResults"></div>
+    </div>
     <button id="addFurnitureBtn" class="btn-ghost">+ Mueble</button>
+    <button id="listAllBtn" class="btn-ghost">Ver todos</button>
     <button id="saveCloudBtn" class="btn-primary" style="display:flex; align-items:center; gap:6px;">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Guardar
@@ -131,7 +220,7 @@
   </div>
 </header>
 
-<div id="mapWrap"><div id="map"></div></div>
+<div id="mapWrap" style="display:none;"><div id="map"></div></div>
 
 <div id="sheetOverlay"></div>
 <div id="sheet"></div>
@@ -142,15 +231,36 @@ const CURRENT_STORE_KEY = 'storeMapState_currentStore';
 
 // Fill this in with real code -> "Nombre, Ubicación" pairs. Blank = shows bare code only.
 const STORE_LOCATIONS = {
+  'K01': 'Barcelona, La Maquinista',
   'K65': 'Baricentro, Barberà del Vallès',
+  'K77': 'Sant Cugat del Vallès',
 };
 
 const LEGACY_STORAGE_KEY = 'storeMapState_v3'; // pre-multi-store save, migrated into K01
-const STORE_CODES = Array.from({length:77}, (_,i) => 'K' + String(i+1).padStart(2,'0'));
+const STORE_CODES = ['K01','K26','K34','K42','K44','K65','K69','K70','K72','K73','K75','K77','K80','K85'];
 const TABLE_W = 22, TABLE_H = 14; // fixed table size, % of map (grid-aligned)
 const MAP_ASPECT = 16/10; // #map's aspect-ratio; h% = w% * MAP_ASPECT keeps a shape visually square/circular
 const GRID = 2; // snap step, % of map
 function snap(v){ return Math.round(v / GRID) * GRID; }
+
+// Rotation is always a multiple of 45° in this app. Math.cos/sin return tiny
+// non-zero noise at 90/180/270 (e.g. cos(90°) = 6.123e-17, not exactly 0),
+// which snap() then rounds inconsistently frame-to-frame — this table removes
+// that noise at the source instead of letting it propagate into the geometry.
+const EXACT_TRIG = {
+  0: {cos:1, sin:0},
+  45: {cos:Math.SQRT1_2, sin:Math.SQRT1_2},
+  90: {cos:0, sin:1},
+  135: {cos:-Math.SQRT1_2, sin:Math.SQRT1_2},
+  180: {cos:-1, sin:0},
+  225: {cos:-Math.SQRT1_2, sin:-Math.SQRT1_2},
+  270: {cos:0, sin:-1},
+  315: {cos:Math.SQRT1_2, sin:-Math.SQRT1_2}
+};
+function trigFor(rot){
+  const r = ((rot || 0) % 360 + 360) % 360;
+  return EXACT_TRIG[r] || { cos: Math.cos(r*Math.PI/180), sin: Math.sin(r*Math.PI/180) };
+}
 
 function seedState(){ return { furniture: [] }; }
 function storageKeyFor(code){ return STORAGE_PREFIX + code; }
@@ -184,6 +294,7 @@ let quickMenuOpenFor = null;
 let pendingClickTimer = null;
 let clipboardFixtures = null; // array of copied fixtures, or null
 let mapContextMenuAt = null; // {x, y} in map %, or null
+let justFinishedRubberBand = false;
 
 function isSelected(id){ return selectedIds.has(id); }
 function selectOnly(id){ selectedIds = new Set([id]); }
@@ -193,6 +304,10 @@ function clearSelection(){ selectedIds = new Set(); }
 let remoteVersion = 0;
 let localDirtySinceLoad = false;
 const sessionPasswords = {}; // store code -> password, kept only for this browser tab session
+const REMEMBERED_PW_PREFIX = 'storeMapPw_v1_';
+function getRememberedPassword(code){ return localStorage.getItem(REMEMBERED_PW_PREFIX + code); }
+function setRememberedPassword(code, pw){ localStorage.setItem(REMEMBERED_PW_PREFIX + code, pw); }
+function clearRememberedPassword(code){ localStorage.removeItem(REMEMBERED_PW_PREFIX + code); }
 
 const mapEl = document.getElementById('map');
 const addFurnitureBtn = document.getElementById('addFurnitureBtn');
@@ -204,12 +319,84 @@ const sheetOverlay = document.getElementById('sheetOverlay');
 
 const storeSelect = document.getElementById('storeSelect');
 const storeBadge = document.getElementById('storeBadge');
+const welcomeOverlay = document.getElementById('welcomeOverlay');
+const welcomeStoreSelect = document.getElementById('welcomeStoreSelect');
+const welcomeEnterBtn = document.getElementById('welcomeEnterBtn');
+const appHeader = document.getElementById('appHeader');
 STORE_CODES.forEach(code => {
   const opt = document.createElement('option');
   opt.value = code;
   opt.textContent = code;
   storeSelect.appendChild(opt);
+  const opt2 = document.createElement('option');
+  opt2.value = code;
+  opt2.textContent = code;
+  welcomeStoreSelect.appendChild(opt2);
 });
+const welcomePasswordInput = document.getElementById('welcomePasswordInput');
+const welcomeError = document.getElementById('welcomeError');
+const welcomeRememberCheck = document.getElementById('welcomeRememberCheck');
+
+welcomeStoreSelect.value = currentStore;
+function prefillRememberedPassword(){
+  const remembered = getRememberedPassword(welcomeStoreSelect.value);
+  if (remembered) {
+    welcomePasswordInput.value = remembered;
+    welcomeRememberCheck.checked = true;
+  } else {
+    welcomePasswordInput.value = '';
+    welcomeRememberCheck.checked = false;
+  }
+}
+welcomeStoreSelect.addEventListener('change', prefillRememberedPassword);
+prefillRememberedPassword();
+
+async function verifyPasswordDirect(code, password){
+  const res = await fetch(`${CLOUD_API_URL}/store/${code}/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password })
+  });
+  return res.ok;
+}
+
+async function attemptEnter(){
+  const code = welcomeStoreSelect.value;
+  const password = welcomePasswordInput.value;
+  welcomeError.textContent = '';
+  if (!password) { welcomeError.textContent = 'Introduce la contraseña.'; return; }
+  welcomeEnterBtn.disabled = true;
+  welcomeEnterBtn.textContent = 'Verificando...';
+  try {
+    const ok = await verifyPasswordDirect(code, password);
+    if (!ok) {
+      welcomeError.textContent = 'Contraseña incorrecta.';
+      welcomeEnterBtn.disabled = false;
+      welcomeEnterBtn.textContent = 'Entrar';
+      return;
+    }
+    sessionPasswords[code] = password;
+    if (welcomeRememberCheck.checked) setRememberedPassword(code, password);
+    else clearRememberedPassword(code);
+    currentStore = code;
+    localStorage.setItem(CURRENT_STORE_KEY, currentStore);
+    state = JSON.parse(localStorage.getItem(storageKeyFor(currentStore)) || 'null') || seedState();
+    storeSelect.value = currentStore;
+    updateBadge();
+    welcomeOverlay.style.display = 'none';
+    appHeader.style.display = '';
+    document.getElementById('mapWrap').style.display = '';
+    render();
+    loadFromCloud(currentStore);
+  } catch (err) {
+    welcomeError.textContent = 'No se pudo conectar con el servidor.';
+    welcomeEnterBtn.disabled = false;
+    welcomeEnterBtn.textContent = 'Entrar';
+  }
+}
+
+welcomeEnterBtn.addEventListener('click', attemptEnter);
+welcomePasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptEnter(); });
 function updateBadge(){
   const loc = STORE_LOCATIONS[currentStore];
   storeBadge.textContent = loc ? (currentStore + ' — ' + loc) : currentStore;
@@ -266,6 +453,19 @@ document.addEventListener('keydown', (e) => {
 
 const KOROSHI_PROXY_URL = 'https://koroshishop.linkgarcia93.workers.dev';
 const CLOUD_API_URL = KOROSHI_PROXY_URL; // same Worker also serves /store/<code>
+
+function cleanKoroshiTitle(title){
+  return title.replace(/\s*[-–—]\s*koroshi\s*$/i, '').trim();
+}
+function trimSkuZeros(sku){
+  // Shopify SKU format here is BASE-NUMBER-SIZE (e.g. 2621PT87-000014-S) — drop the size, then strip leading zeros from the number
+  const parts = sku.split('-');
+  if (parts.length >= 3) parts.pop(); // drop trailing size code
+  if (parts.length < 2) return sku;
+  const numPart = parts.pop();
+  const trimmedNum = numPart.replace(/^0+(?=\d)/, '');
+  return parts.join('-') + '-' + trimmedNum;
+}
 
 async function loadFromCloud(code){
   try {
@@ -326,32 +526,74 @@ async function saveToCloud(code, forcing){
   }
 }
 
-async function verifyPasswordFor(code){
-  if (sessionPasswords[code]) return true;
-  let attempts = 0;
-  while (attempts < 3) {
-    const pw = prompt('Contraseña para ' + code + ':');
-    if (pw === null) return false; // user cancelled
-    if (!pw) { attempts++; continue; }
-    try {
-      const res = await fetch(`${CLOUD_API_URL}/store/${code}/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        sessionPasswords[code] = pw;
-        return true;
-      }
-      alert('Contraseña incorrecta.');
-      attempts++;
-    } catch (err) {
-      alert('No se pudo conectar con el servidor (' + err.message + ').');
-      return false;
-    }
+function verifyPasswordFor(code){
+  if (sessionPasswords[code]) return Promise.resolve(true);
+
+  const remembered = getRememberedPassword(code);
+  if (remembered) {
+    sessionPasswords[code] = remembered; // trust the local record; a real mismatch surfaces via the normal 401 flow elsewhere
+    return Promise.resolve(true);
   }
-  return false;
+
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('pwModalOverlay');
+    const title = document.getElementById('pwModalTitle');
+    const input = document.getElementById('pwModalInput');
+    const rememberCheck = document.getElementById('pwModalRememberCheck');
+    const errorEl = document.getElementById('pwModalError');
+    const okBtn = document.getElementById('pwModalOkBtn');
+    const cancelBtn = document.getElementById('pwModalCancelBtn');
+
+    title.textContent = 'Contraseña para ' + code;
+    input.value = '';
+    rememberCheck.checked = false;
+    errorEl.textContent = '';
+    overlay.classList.add('open');
+    setTimeout(() => input.focus(), 50);
+
+    function cleanup(){
+      overlay.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKeydown);
+    }
+    async function onOk(){
+      const pw = input.value;
+      if (!pw) { errorEl.textContent = 'Introduce la contraseña.'; return; }
+      okBtn.disabled = true;
+      okBtn.textContent = 'Verificando...';
+      try {
+        const res = await fetch(`${CLOUD_API_URL}/store/${code}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw })
+        });
+        if (res.ok) {
+          sessionPasswords[code] = pw;
+          if (rememberCheck.checked) setRememberedPassword(code, pw);
+          cleanup();
+          resolve(true);
+          return;
+        }
+        errorEl.textContent = 'Contraseña incorrecta.';
+        okBtn.disabled = false;
+        okBtn.textContent = 'Continuar';
+      } catch (err) {
+        errorEl.textContent = 'No se pudo conectar con el servidor.';
+        okBtn.disabled = false;
+        okBtn.textContent = 'Continuar';
+      }
+    }
+    function onCancel(){
+      cleanup();
+      resolve(false);
+    }
+    function onKeydown(e){ if (e.key === 'Enter') onOk(); }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKeydown);
+  });
 }
 
 let koroshiSearchAbort = null;
@@ -387,7 +629,7 @@ function render(){
   state.furniture.forEach(f => {
     const el = document.createElement('div');
     const selHere = isSelected(f.id);
-    const isFilled = f.type === 'counter' && f.drawers[0] && f.drawers[0].products.length;
+    const isFilled = (f.type === 'counter' || f.type === 'hanger-t' || f.type === 'hanger-round') && f.drawers[0] && f.drawers[0].products.length;
     el.className = 'furniture ' + f.type + (selHere ? ' selected' : '') + (isFilled ? ' filled' : '');
     el.style.left = f.x + '%';
     el.style.top = f.y + '%';
@@ -471,6 +713,7 @@ function render(){
       ['right','left','top','bottom'].forEach(edge => {
         const h = document.createElement('div');
         h.className = 'resize-' + edge;
+        h.style.cursor = resizeCursorFor(edge, f.rot);
         el.appendChild(h);
         enableResizeEdge(h, el, f, edge);
       });
@@ -568,6 +811,7 @@ function fixturesInRect(x1, y1, x2, y2){
 mapEl.addEventListener('pointerdown', (e) => {
   if (e.target !== mapEl) return;
   if (e.button !== undefined && e.button !== 0) return;
+  e.preventDefault();
   const rect = mapEl.getBoundingClientRect();
   const startX = (e.clientX - rect.left) / rect.width * 100;
   const startY = (e.clientY - rect.top) / rect.height * 100;
@@ -594,6 +838,7 @@ mapEl.addEventListener('pointerdown', (e) => {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
     if (dragging) {
+      justFinishedRubberBand = true;
       const curX = (ev.clientX - rect.left) / rect.width * 100;
       const curY = (ev.clientY - rect.top) / rect.height * 100;
       const hitIds = fixturesInRect(startX, startY, curX, curY);
@@ -609,6 +854,7 @@ mapEl.addEventListener('pointerdown', (e) => {
 });
 
 mapEl.addEventListener('click', (e) => {
+  if (justFinishedRubberBand) { justFinishedRubberBand = false; return; }
   if (e.target === mapEl) {
     clearSelection();
     quickMenuOpenFor = null;
@@ -681,6 +927,12 @@ function canonicalEdgeFor(visualEdge, rot){
   angle = Math.round(angle / 90) * 90 % 360;
   return ANGLE_EDGES[angle];
 }
+const RESIZE_CURSOR_BY_ANGLE = { 0:'ew-resize', 45:'nwse-resize', 90:'ns-resize', 135:'nesw-resize' };
+function resizeCursorFor(edge, rot){
+  let angle = ((EDGE_ANGLES[edge] + (rot || 0)) % 180 + 180) % 180;
+  angle = Math.round(angle / 45) * 45 % 180;
+  return RESIZE_CURSOR_BY_ANGLE[angle];
+}
 
 function enableResizeEdge(handle, el, f, edge){
   handle.addEventListener('pointerdown', (e) => {
@@ -688,48 +940,77 @@ function enableResizeEdge(handle, el, f, edge){
     pushUndo();
     const rect = mapEl.getBoundingClientRect();
     const origW = f.w, origH = f.h;
-    const cx = f.x + origW/2, cy = f.y + origH/2;
-    const rad = (f.rot || 0) * Math.PI/180;
-    const cos = Math.cos(rad), sin = Math.sin(rad);
-    const cosInv = Math.cos(-rad), sinInv = Math.sin(-rad);
+    const cx = f.x + origW/2, cy = f.y + origH/2; // percent-of-own-axis center
+    const { cos, sin } = trigFor(f.rot);
+    const cosInv = cos, sinInv = -sin; // inverse rotation: cos(-θ)=cos(θ), sin(-θ)=-sin(θ)
     const MIN_SIZE = (f.type === 'hanger-t' && axis0For(edge) === 'w') ? GRID : GRID*3;
     const axis = EDGE_AXIS[edge], sign = EDGE_SIGN[edge];
-    const anchorLocal = axis === 'w' ? { x:-sign*origW/2, y:0 } : { x:0, y:-sign*origH/2 };
-    const anchorWorld = {
-      x: cx + (anchorLocal.x*cos - anchorLocal.y*sin),
-      y: cy + (anchorLocal.x*sin + anchorLocal.y*cos)
+
+    // Do all rotation math in real pixels (uniform scale), only converting
+    // to/from each axis's own percent unit at the boundaries — percent-of-width
+    // and percent-of-height are physically different sizes on a non-square map,
+    // so mixing them directly into a rotation matrix distorts the shape.
+    const anchorLocalPercent = axis === 'w' ? { x:-sign*origW/2, y:0 } : { x:0, y:-sign*origH/2 };
+    const anchorLocalPx = { x: anchorLocalPercent.x/100*rect.width, y: anchorLocalPercent.y/100*rect.height };
+    const cxPx = cx/100*rect.width, cyPx = cy/100*rect.height;
+    const anchorWorldPx = {
+      x: cxPx + (anchorLocalPx.x*cos - anchorLocalPx.y*sin),
+      y: cyPx + (anchorLocalPx.x*sin + anchorLocalPx.y*cos)
     };
+
     handle.setPointerCapture(e.pointerId);
-    const move = (ev) => {
-      const mx = (ev.clientX - rect.left) / rect.width * 100;
-      const my = (ev.clientY - rect.top) / rect.height * 100;
-      const dx = mx - anchorWorld.x, dy = my - anchorWorld.y;
-      const localX = dx*cosInv - dy*sinInv;
-      const localY = dx*sinInv + dy*cosInv;
+    let pendingEvent = null;
+    let rafScheduled = false;
+
+    function applyMove(ev){
+      const mxPx = ev.clientX - rect.left;
+      const myPx = ev.clientY - rect.top;
+      const dxPx = mxPx - anchorWorldPx.x, dyPx = myPx - anchorWorldPx.y;
+      const localXpx = dxPx*cosInv - dyPx*sinInv;
+      const localYpx = dxPx*sinInv + dyPx*cosInv;
+      const localXpercent = localXpx/rect.width*100;
+      const localYpercent = localYpx/rect.height*100;
+
       let newW = origW, newH = origH;
       if (axis === 'w') {
-        newW = snap(Math.max(MIN_SIZE, sign*localX));
+        newW = snap(Math.max(MIN_SIZE, sign*localXpercent));
         if (f.type === 'hanger-round') newH = newW * MAP_ASPECT;
       } else {
-        newH = snap(Math.max(MIN_SIZE, sign*localY));
+        newH = snap(Math.max(MIN_SIZE, sign*localYpercent));
         if (f.type === 'hanger-round') newW = newH / MAP_ASPECT;
       }
-      const centerOffsetLocal = axis === 'w' ? { x:sign*newW/2, y:0 } : { x:0, y:sign*newH/2 };
-      const newCenter = {
-        x: anchorWorld.x + (centerOffsetLocal.x*cos - centerOffsetLocal.y*sin),
-        y: anchorWorld.y + (centerOffsetLocal.x*sin + centerOffsetLocal.y*cos)
+
+      const halfOffsetLocalPercent = axis === 'w' ? { x:sign*newW/2, y:0 } : { x:0, y:sign*newH/2 };
+      const halfOffsetLocalPx = { x: halfOffsetLocalPercent.x/100*rect.width, y: halfOffsetLocalPercent.y/100*rect.height };
+      const newCenterPx = {
+        x: anchorWorldPx.x + (halfOffsetLocalPx.x*cos - halfOffsetLocalPx.y*sin),
+        y: anchorWorldPx.y + (halfOffsetLocalPx.x*sin + halfOffsetLocalPx.y*cos)
       };
+      const newCenterPercent = { x: newCenterPx.x/rect.width*100, y: newCenterPx.y/rect.height*100 };
+
       f.w = newW; f.h = newH;
-      f.x = snap(Math.max(0, newCenter.x - newW/2));
-      f.y = snap(Math.max(0, newCenter.y - newH/2));
+      f.x = snap(Math.max(0, newCenterPercent.x - newW/2));
+      f.y = snap(Math.max(0, newCenterPercent.y - newH/2));
       el.style.width = f.w + '%';
       el.style.height = f.h + '%';
       el.style.left = f.x + '%';
       el.style.top = f.y + '%';
+    }
+
+    const move = (ev) => {
+      pendingEvent = ev;
+      if (!rafScheduled) {
+        rafScheduled = true;
+        requestAnimationFrame(() => {
+          rafScheduled = false;
+          if (pendingEvent) applyMove(pendingEvent);
+        });
+      }
     };
     const up = () => {
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
+      if (pendingEvent) applyMove(pendingEvent); // apply the final position even if a frame was skipped
       persist();
     };
     document.addEventListener('pointermove', move);
@@ -893,11 +1174,23 @@ sheetOverlay.addEventListener('click', closeSheet);
 // --- VIEW: contents of one drawer / hanger ---
 function productLabel(p){ return typeof p === 'string' ? p : p.name; }
 function productImage(p){ return (p && typeof p === 'object') ? p.image : null; }
-function extractProductKey(p){
-  const name = productLabel(p);
-  const m = name.match(/\(([^()]+)\)\s*$/);
-  return (m ? m[1] : name).trim().toLowerCase();
+function parseProductName(rawName){
+  const name = typeof rawName === 'string' ? rawName : '';
+  const skuMatch = name.match(/([A-Za-z0-9]{3,}-\d{1,6})/);
+  const sku = skuMatch ? skuMatch[1] : '';
+  let title = sku ? name.replace(sku, '') : name;
+  title = title.replace(/\(\s*\)/g, '').replace(/[–—-]\s*$/, '').replace(/^\s*[–—-]/, '');
+  title = cleanKoroshiTitle(title.replace(/\s{2,}/g, ' ').trim());
+  return { sku, title };
 }
+function formatProductName(sku, title){
+  return sku ? sku + ' — ' + title : title;
+}
+function extractProductKey(p){
+  const parsed = parseProductName(productLabel(p));
+  return (parsed.sku || parsed.title).toLowerCase();
+}
+
 function findProductInStore(key){
   for (const f of state.furniture){
     for (const d of f.drawers){
@@ -914,7 +1207,7 @@ function openViewSheet(furnitureId, drawerId){
   const d = f.drawers.find(x => x.id === drawerId);
   let items = d.products.map((p,i) => `
     <div class="rowItem">
-      ${productImage(p) ? `<img class="prodThumb" src="${productImage(p)}">` : ''}
+      ${productImage(p) ? `<img class="prodThumb lightboxable" src="${productImage(p)}">` : ''}
       <span style="flex:1;">${productLabel(p)}</span>
       <button class="del" data-idx="${i}">Quitar</button>
     </div>`
@@ -938,6 +1231,7 @@ function openViewSheet(furnitureId, drawerId){
   });
 
   const searchInput = document.getElementById('productSearchInput');
+  setTimeout(() => searchInput.focus(), 100);
   const resultsEl = document.getElementById('searchResults');
   const statusEl = document.getElementById('searchStatus');
   let debounceTimer = null;
@@ -953,7 +1247,8 @@ function openViewSheet(furnitureId, drawerId){
         const products = await searchKoroshi(q);
         statusEl.textContent = products.length ? '' : 'Sin resultados.';
         resultsEl.innerHTML = products.map((p,i) => {
-          const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? p.variants[0].sku : '';
+          const cleanTitle = cleanKoroshiTitle(p.title);
+          const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
           const key = (sku || p.title).trim().toLowerCase();
           const existing = findProductInStore(key);
           let dupNote = '', disabled = false;
@@ -964,20 +1259,22 @@ function openViewSheet(furnitureId, drawerId){
           return `
           <div class="searchResultItem${disabled ? ' disabled' : ''}" data-i="${i}" ${disabled ? 'data-disabled="1"' : ''}>
             <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
-            <span>${p.title}${sku ? ' <span style="color:#6b7280;font-size:11px;">(' + sku + ')</span>' : ''}${dupNote ? '<span class="dupNote">' + dupNote + '</span>' : ''}</span>
+            <span>${sku ? '<span style="color:#6b7280;font-size:11px;">' + sku + ' — </span>' : ''}${cleanTitle}${dupNote ? '<span class="dupNote">' + dupNote + '</span>' : ''}</span>
           </div>`;
         }).join('');
         resultsEl.querySelectorAll('[data-i]:not([data-disabled])').forEach(el => {
           el.addEventListener('click', () => {
             pushUndo();
             const p = products[Number(el.dataset.i)];
-            const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? p.variants[0].sku : '';
-            d.products.push({ name: p.title + (sku ? ' (' + sku + ')' : ''), image: p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '' });
+            const cleanTitle = cleanKoroshiTitle(p.title);
+            const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
+            d.products.push({ name: formatProductName(sku, cleanTitle), image: p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '' });
             persist();
             openViewSheet(furnitureId, drawerId);
           });
         });
       } catch (err) {
+        if (err.name === 'AbortError') return; // a newer keystroke superseded this search — not a real error
         statusEl.textContent = 'No se pudo conectar con Koroshi (' + err.message + ').';
       }
     }, 350);
@@ -1096,8 +1393,175 @@ addFurnitureBtn.addEventListener('click', () => {
 
 saveCloudBtn.addEventListener('click', () => saveToCloud(currentStore));
 
-render();
-switchToStore(currentStore);
+const globalSearchInput = document.getElementById('globalSearchInput');
+const globalSearchResults = document.getElementById('globalSearchResults');
+let globalSearchDebounce = null;
+
+function fixtureNameById(furnitureId){
+  const f = state.furniture.find(x => x.id === furnitureId);
+  return f ? f.name : '?';
+}
+function drawerNameById(furnitureId, drawerId){
+  const f = state.furniture.find(x => x.id === furnitureId);
+  const d = f && f.drawers.find(x => x.id === drawerId);
+  return d ? d.name : '?';
+}
+
+globalSearchInput.addEventListener('input', () => {
+  const q = globalSearchInput.value.trim();
+  globalSearchResults.innerHTML = '';
+  if (globalSearchDebounce) clearTimeout(globalSearchDebounce);
+  if (q.length < 2) return;
+  globalSearchDebounce = setTimeout(async () => {
+    let products = [];
+    try { products = await searchKoroshi(q); } catch (err) { /* show empty below */ }
+    const rows = products.map(p => {
+      const cleanTitle = cleanKoroshiTitle(p.title);
+      const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
+      const key = (sku || p.title).trim().toLowerCase();
+      const existing = findProductInStore(key);
+      return { cleanTitle, sku, image: p.image || '', url: p.url || '', existing };
+    });
+    globalSearchResults.innerHTML = rows.map((r,i) => `
+      <div class="gsItem" data-i="${i}" ${r.existing ? `data-open-furniture="${r.existing.furnitureId}" data-open-drawer="${r.existing.drawerId}" style="cursor:pointer;"` : ''}>
+        <img src="${r.image}" onerror="this.style.visibility='hidden'">
+        <div class="gsInfo">
+          <div>${r.sku ? r.sku + ' — ' : ''}${r.cleanTitle}</div>
+          ${r.existing ? `<div class="gsLoc">${fixtureNameById(r.existing.furnitureId)} — ${drawerNameById(r.existing.furnitureId, r.existing.drawerId)}</div>` : `<div class="gsUnplaced">Sin ubicar</div>`}
+        </div>
+        ${r.existing ? '' : '<button class="gsAssignBtn" data-assign="' + i + '">Asignar</button>'}
+      </div>`).join('') || '<div class="gsItem"><div class="gsInfo">Sin resultados.</div></div>';
+
+    globalSearchResults.querySelectorAll('[data-open-furniture]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('[data-assign]')) return;
+        openViewSheet(el.dataset.openFurniture, el.dataset.openDrawer);
+        globalSearchResults.innerHTML = '';
+        globalSearchInput.value = '';
+      });
+    });
+    globalSearchResults.querySelectorAll('[data-assign]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openAssignPicker(rows[Number(btn.dataset.assign)]);
+      });
+    });
+  }, 350);
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.globalSearchWrap')) globalSearchResults.innerHTML = '';
+});
+
+function openAssignPicker(r){
+  const options = [];
+  state.furniture.forEach(f => {
+    f.drawers.forEach(d => options.push({ furnitureId: f.id, drawerId: d.id, label: f.name + ' — ' + d.name }));
+  });
+  const listHtml = options.map((o,i) => `<div class="rowItem"><button class="rowBtn" data-pick="${i}">${o.label}</button></div>`).join('') || '<div class="small">No hay cajones disponibles.</div>';
+  openSheet(`
+    <div class="sheetHeader"><h2>Asignar: ${r.cleanTitle}</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
+    ${listHtml}
+  `);
+  sheet.querySelectorAll('[data-pick]').forEach(b => {
+    b.addEventListener('click', () => {
+      const o = options[Number(b.dataset.pick)];
+      pushUndo();
+      const f = state.furniture.find(x => x.id === o.furnitureId);
+      const d = f.drawers.find(x => x.id === o.drawerId);
+      d.products.push({ name: formatProductName(r.sku, r.cleanTitle), image: r.image, url: r.url ? ('https://koroshishop.com' + r.url) : '' });
+      persist();
+      globalSearchInput.value = '';
+      globalSearchResults.innerHTML = '';
+      closeSheet();
+    });
+  });
+}
+
+function openLightbox(src){
+  if (!src) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'lightboxOverlay';
+  overlay.innerHTML = `<img src="${src}">`;
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+document.addEventListener('click', (e) => {
+  const img = e.target.closest('.lightboxable');
+  if (img && img.src) openLightbox(img.src);
+});
+
+function renderAllItemsList(){
+  const all = [];
+  state.furniture.forEach(f => {
+    f.drawers.forEach(d => {
+      d.products.forEach(p => {
+        const parsed = parseProductName(productLabel(p));
+        all.push({ sku: parsed.sku, title: parsed.title, image: productImage(p), furnitureId: f.id, drawerId: d.id, furnitureName: f.name, drawerName: d.name });
+      });
+    });
+  });
+  all.sort((a, b) => (a.sku || a.title).toLowerCase().localeCompare((b.sku || b.title).toLowerCase(), 'es'));
+  const rows = all.map(item => `
+    <div class="rowItem" data-open-furniture="${item.furnitureId}" data-open-drawer="${item.drawerId}" style="cursor:pointer;">
+      ${item.image ? `<img class="prodThumb lightboxable" src="${item.image}">` : ''}
+      <span style="flex:1;">${item.sku ? item.sku + ' — ' + item.title : item.title}<br><span class="small">${item.furnitureName} — ${item.drawerName}</span></span>
+    </div>`).join('') || '<div class="small">No hay artículos en esta tienda.</div>';
+  const missingCount = all.filter(item => !item.sku).length;
+  openSheet(`
+    <div class="sheetHeader"><h2>Todos los artículos (${all.length})</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
+    ${missingCount ? `<button class="btn-ghost" id="updateAllBtn" style="margin-bottom:10px;width:100%;">Actualizar SKU (${missingCount} pendiente${missingCount === 1 ? '' : 's'})</button>` : ''}
+    ${rows}
+  `);
+  sheet.querySelectorAll('[data-open-furniture]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.lightboxable')) return;
+      openViewSheet(el.dataset.openFurniture, el.dataset.openDrawer);
+    });
+  });
+  const updateAllBtn = document.getElementById('updateAllBtn');
+  if (updateAllBtn) updateAllBtn.addEventListener('click', updateAllSkus);
+}
+
+async function updateAllSkus(){
+  const targets = [];
+  state.furniture.forEach(f => f.drawers.forEach(d => d.products.forEach((p, i) => {
+    const parsed = parseProductName(productLabel(p));
+    if (!parsed.sku) targets.push({ f, d, p, i, title: parsed.title });
+  })));
+  if (!targets.length) { alert('Todos los artículos ya tienen SKU.'); return; }
+  if (!confirm('Se buscarán ' + targets.length + ' artículo(s) en Koroshi para completar su SKU. ¿Continuar?')) return;
+  pushUndo();
+  let updated = 0, failed = 0;
+  for (const t of targets) {
+    try {
+      const results = await searchKoroshi(t.title);
+      const match = results.find(r => cleanKoroshiTitle(r.title).toLowerCase() === t.title.toLowerCase()) || results[0];
+      const sku = (match && match.variants && match.variants[0] && match.variants[0].sku) ? trimSkuZeros(match.variants[0].sku) : '';
+      if (match && sku) {
+        const newName = formatProductName(sku, cleanKoroshiTitle(match.title));
+        if (typeof t.p === 'string') {
+          t.d.products[t.i] = { name: newName, image: match.image || '', url: match.url ? ('https://koroshishop.com' + match.url) : '' };
+        } else {
+          t.p.name = newName;
+          if (!t.p.image && match.image) t.p.image = match.image;
+        }
+        updated++;
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      failed++;
+    }
+  }
+  persist();
+  alert('Actualizado: ' + updated + '. Sin coincidencia: ' + failed + '.');
+  renderAllItemsList();
+}
+
+const listAllBtn = document.getElementById('listAllBtn');
+listAllBtn.addEventListener('click', renderAllItemsList);
+
 </script>
 </body>
 </html>

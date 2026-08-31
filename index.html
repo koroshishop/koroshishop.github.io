@@ -1564,8 +1564,10 @@ function renderAllItemsList(){
       <span style="flex:1; cursor:pointer;" data-locate="${item.furnitureId}">${productDisplayHtml(item.raw)}<br><span class="small">${item.furnitureName} — ${item.drawerName}</span></span>
     </div>`).join('') || '<div class="small">No hay artículos en esta tienda.</div>';
   const missingCount = all.filter(item => !item.sku).length;
+  const messyTitleCount = all.filter(item => cleanKoroshiTitle(item.title) !== item.title).length;
   openSheet(`
     <div class="sheetHeader"><h2>Todos los artículos (${all.length})</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
+    ${messyTitleCount ? `<button class="btn-ghost" id="cleanTitlesBtn" style="margin-bottom:8px;width:100%;">Limpiar nombres (${messyTitleCount} con "Koroshi")</button>` : ''}
     ${missingCount ? `<button class="btn-ghost" id="updateAllBtn" style="margin-bottom:10px;width:100%;">Actualizar SKU (${missingCount} pendiente${missingCount === 1 ? '' : 's'})</button>` : ''}
     ${rows}
   `);
@@ -1577,6 +1579,8 @@ function renderAllItemsList(){
   });
   const updateAllBtn = document.getElementById('updateAllBtn');
   if (updateAllBtn) updateAllBtn.addEventListener('click', updateAllSkus);
+  const cleanTitlesBtn = document.getElementById('cleanTitlesBtn');
+  if (cleanTitlesBtn) cleanTitlesBtn.addEventListener('click', cleanAllLegacyTitles);
 }
 
 async function updateAllSkus(){
@@ -1613,6 +1617,29 @@ async function updateAllSkus(){
   }
   persist();
   alert('Actualizado: ' + updated + '. Sin coincidencia: ' + failed + '.');
+  renderAllItemsList();
+}
+
+function cleanAllLegacyTitles(){
+  let fixed = 0;
+  state.furniture.forEach(f => f.drawers.forEach(d => d.products.forEach((p, i) => {
+    const parsed = parseProductName(productLabel(p));
+    const cleanTitle = cleanKoroshiTitle(parsed.title);
+    const newName = formatProductName(parsed.sku, cleanTitle);
+    const oldName = productLabel(p);
+    if (newName !== oldName) {
+      fixed++;
+      if (typeof p === 'string') {
+        d.products[i] = { name: newName };
+      } else {
+        p.name = newName;
+      }
+    }
+  })));
+  if (!fixed) { alert('Ningún título necesitaba limpieza.'); return; }
+  pushUndo();
+  persist();
+  alert('Nombres corregidos: ' + fixed + '.');
   renderAllItemsList();
 }
 

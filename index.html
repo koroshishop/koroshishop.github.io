@@ -1553,24 +1553,33 @@ function renderAllItemsList(){
     f.drawers.forEach(d => {
       d.products.forEach(p => {
         const parsed = parseProductName(productLabel(p));
-        all.push({ raw: p, sku: parsed.sku, title: parsed.title, image: productImage(p), furnitureId: f.id, drawerId: d.id, furnitureName: f.name, drawerName: d.name });
+        all.push({ raw: p, sku: parsed.sku, title: parsed.title, price: productPrice(p), image: productImage(p), furnitureId: f.id, drawerId: d.id, furnitureName: f.name, drawerName: d.name });
       });
     });
   });
   all.sort((a, b) => (a.sku || a.title).toLowerCase().localeCompare((b.sku || b.title).toLowerCase(), 'es'));
+
+  const messyTitleCount = all.filter(item => /koroshi/i.test(productLabel(item.raw))).length;
+
   const rows = all.map(item => `
     <div class="rowItem" data-open-furniture="${item.furnitureId}" data-open-drawer="${item.drawerId}">
       ${item.image ? `<img class="prodThumb lightboxable" src="${item.image}">` : ''}
-      <span style="flex:1; cursor:pointer;" data-locate="${item.furnitureId}">${productDisplayHtml(item.raw)}<br><span class="small">${item.furnitureName} — ${item.drawerName}</span></span>
+      <span style="flex:1; cursor:pointer;" data-locate="${item.furnitureId}">
+        <b>${item.sku ? item.sku : ''}</b>${item.sku && item.price ? ' — ' : ''}${item.price ? '<b style="color:#2563eb;">' + item.price + ' €</b>' : ''}<br>
+        ${item.title}<br>
+        <span class="small">${item.furnitureName} — ${item.drawerName}</span>
+      </span>
     </div>`).join('') || '<div class="small">No hay artículos en esta tienda.</div>';
+
   const missingCount = all.filter(item => !item.sku).length;
-  const messyTitleCount = all.filter(item => cleanKoroshiTitle(item.title) !== item.title).length;
+
   openSheet(`
     <div class="sheetHeader"><h2>Todos los artículos (${all.length})</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
     ${messyTitleCount ? `<button class="btn-ghost" id="cleanTitlesBtn" style="margin-bottom:8px;width:100%;">Limpiar nombres (${messyTitleCount} con "Koroshi")</button>` : ''}
     ${missingCount ? `<button class="btn-ghost" id="updateAllBtn" style="margin-bottom:10px;width:100%;">Actualizar SKU (${missingCount} pendiente${missingCount === 1 ? '' : 's'})</button>` : ''}
     ${rows}
   `);
+
   sheet.querySelectorAll('[data-locate]').forEach(el => {
     el.addEventListener('click', (e) => {
       if (e.target.closest('.lightboxable')) return;

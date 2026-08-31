@@ -357,7 +357,7 @@ welcomeStoreSelect.addEventListener('change', prefillRememberedPassword);
 prefillRememberedPassword();
 
 async function verifyPasswordDirect(code, password){
-  const res = await fetch(`${CLOUD_API_URL}/store/${code}/verify`, {
+  const res = await fetchWithTimeout(`${CLOUD_API_URL}/store/${code}/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password })
@@ -459,6 +459,19 @@ document.addEventListener('keydown', (e) => {
 const KOROSHI_PROXY_URL = 'https://koroshishop.linkgarcia93.workers.dev';
 const CLOUD_API_URL = KOROSHI_PROXY_URL; // same Worker also serves /store/<code>
 
+async function fetchWithTimeout(url, options, timeoutMs){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs || 10000);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('Tiempo de espera agotado');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function cleanKoroshiTitle(title){
   let t = title;
   // Koroshi shows up in different shapes: "... | Koroshi", "... – Koroshi Granate",
@@ -503,7 +516,7 @@ async function saveToCloud(code, forcing){
   const password = sessionPasswords[code];
   const baseVersionSent = remoteVersion;
   try {
-    const res = await fetch(`${CLOUD_API_URL}/store/${code}`, {
+    const res = await fetchWithTimeout(`${CLOUD_API_URL}/store/${code}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password, baseVersion: baseVersionSent, furniture: state.furniture })
@@ -576,7 +589,7 @@ function verifyPasswordFor(code){
       okBtn.disabled = true;
       okBtn.textContent = 'Verificando...';
       try {
-        const res = await fetch(`${CLOUD_API_URL}/store/${code}/verify`, {
+        const res = await fetchWithTimeout(`${CLOUD_API_URL}/store/${code}/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password: pw })

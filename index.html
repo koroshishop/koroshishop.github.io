@@ -455,7 +455,15 @@ const KOROSHI_PROXY_URL = 'https://koroshishop.linkgarcia93.workers.dev';
 const CLOUD_API_URL = KOROSHI_PROXY_URL; // same Worker also serves /store/<code>
 
 function cleanKoroshiTitle(title){
-  return title.replace(/\s*[-–—]\s*koroshi\s*$/i, '').trim();
+  let t = title;
+  // Koroshi shows up in different shapes: "... | Koroshi", "... – Koroshi Granate",
+  // "... – Koroshi Gris" (brand embedded mid-string, followed by a color) — strip the
+  // brand together with whatever separator precedes it, wherever it sits.
+  t = t.replace(/\s*[-–—|]\s*koroshi\b\s*/gi, ' ');
+  t = t.replace(/\bkoroshi\b\s*/gi, ' ');
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  t = t.replace(/^[-–—|]\s*/, '').replace(/\s*[-–—|]\s*$/, '').trim();
+  return t;
 }
 function trimSkuZeros(sku){
   // Shopify SKU format here is BASE-NUMBER-SIZE (e.g. 2621PT87-000014-S) — drop the size, then strip leading zeros from the number
@@ -1174,6 +1182,12 @@ sheetOverlay.addEventListener('click', closeSheet);
 // --- VIEW: contents of one drawer / hanger ---
 function productLabel(p){ return typeof p === 'string' ? p : p.name; }
 function productImage(p){ return (p && typeof p === 'object') ? p.image : null; }
+function productPrice(p){ return (p && typeof p === 'object' && p.price) ? p.price : ''; }
+function productDisplayHtml(p){
+  const price = productPrice(p);
+  return productLabel(p) + (price ? ' — <b style="color:#2563eb;">' + price + ' €</b>' : '');
+}
+function isDrawerTypeFixture(f){ return f && (f.type === 'table' || f.type === 'counter'); }
 function parseProductName(rawName){
   const name = typeof rawName === 'string' ? rawName : '';
   const skuMatch = name.match(/([A-Za-z0-9]{3,}-\d{1,6})/);
@@ -1191,15 +1205,16 @@ function extractProductKey(p){
   return (parsed.sku || parsed.title).toLowerCase();
 }
 
-function findProductInStore(key){
+function findProductLocations(key){
+  const matches = [];
   for (const f of state.furniture){
     for (const d of f.drawers){
       for (const p of d.products){
-        if (extractProductKey(p) === key) return { furnitureId: f.id, drawerId: d.id };
+        if (extractProductKey(p) === key) matches.push({ furnitureId: f.id, drawerId: d.id, isDrawerType: isDrawerTypeFixture(f) });
       }
     }
   }
-  return null;
+  return matches;
 }
 
 function openViewSheet(furnitureId, drawerId){
@@ -1208,7 +1223,7 @@ function openViewSheet(furnitureId, drawerId){
   let items = d.products.map((p,i) => `
     <div class="rowItem">
       ${productImage(p) ? `<img class="prodThumb lightboxable" src="${productImage(p)}">` : ''}
-      <span style="flex:1;">${productLabel(p)}</span>
+      <span style="flex:1;">${productDisplayHtml(p)}</span>
       <button class="del" data-idx="${i}">Quitar</button>
     </div>`
   ).join('') || '<div class="small">Vacío.</div>';
@@ -1246,20 +1261,26 @@ function openViewSheet(furnitureId, drawerId){
       try {
         const products = await searchKoroshi(q);
         statusEl.textContent = products.length ? '' : 'Sin resultados.';
+        const targetIsDrawerType = isDrawerTypeFixture(f);
         resultsEl.innerHTML = products.map((p,i) => {
           const cleanTitle = cleanKoroshiTitle(p.title);
           const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
           const key = (sku || p.title).trim().toLowerCase();
-          const existing = findProductInStore(key);
+          const matches = findProductLocations(key);
+          const sameDrawerMatch = matches.find(m => m.drawerId === drawerId);
           let dupNote = '', disabled = false;
-          if (existing) {
+          if (sameDrawerMatch) {
             disabled = true;
-            dupNote = existing.drawerId === drawerId ? 'Ya está en este cajón' : 'Ya está en otro cajón';
+            dupNote = 'Ya está en este cajón';
+          } else if (targetIsDrawerType && matches.some(m => m.isDrawerType)) {
+            disabled = true;
+            dupNote = 'Ya está en otro cajón';
           }
+          const priceHtml = p.price ? ' — <b style="color:#2563eb;">' + p.price + ' €</b>' : '';
           return `
           <div class="searchResultItem${disabled ? ' disabled' : ''}" data-i="${i}" ${disabled ? 'data-disabled="1"' : ''}>
             <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
-            <span>${sku ? '<span style="color:#6b7280;font-size:11px;">' + sku + ' — </span>' : ''}${cleanTitle}${dupNote ? '<span class="dupNote">' + dupNote + '</span>' : ''}</span>
+            <span>${sku ? '<span style="color:#6b7280;font-size:11px;">' + sku + ' — </span>' : ''}${cleanTitle}${priceHtml}${dupNote ? '<span class="dupNote">' + dupNote + '</span>' : ''}</span>
           </div>`;
         }).join('');
         resultsEl.querySelectorAll('[data-i]:not([data-disabled])').forEach(el => {
@@ -1268,7 +1289,7 @@ function openViewSheet(furnitureId, drawerId){
             const p = products[Number(el.dataset.i)];
             const cleanTitle = cleanKoroshiTitle(p.title);
             const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
-            d.products.push({ name: formatProductName(sku, cleanTitle), image: p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '' });
+            d.products.push({ name: formatProductName(sku, cleanTitle), image: p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '', price: p.price || '' });
             persist();
             openViewSheet(furnitureId, drawerId);
           });
@@ -1419,26 +1440,36 @@ globalSearchInput.addEventListener('input', () => {
       const cleanTitle = cleanKoroshiTitle(p.title);
       const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
       const key = (sku || p.title).trim().toLowerCase();
-      const existing = findProductInStore(key);
-      return { cleanTitle, sku, image: p.image || '', url: p.url || '', existing };
+      const locations = findProductLocations(key);
+      return { cleanTitle, sku, price: p.price || '', image: p.image || '', url: p.url || '', locations };
     });
-    globalSearchResults.innerHTML = rows.map((r,i) => `
-      <div class="gsItem" data-i="${i}" ${r.existing ? `data-open-furniture="${r.existing.furnitureId}" data-open-drawer="${r.existing.drawerId}" style="cursor:pointer;"` : ''}>
+    globalSearchResults.innerHTML = rows.map((r,i) => {
+      const locLabel = r.locations.map(loc => fixtureNameById(loc.furnitureId) + ' — ' + drawerNameById(loc.furnitureId, loc.drawerId)).join(', ');
+      const priceHtml = r.price ? ' — <b style="color:#2563eb;">' + r.price + ' €</b>' : '';
+      return `
+      <div class="gsItem" data-i="${i}">
         <img src="${r.image}" onerror="this.style.visibility='hidden'">
         <div class="gsInfo">
-          <div>${r.sku ? r.sku + ' — ' : ''}${r.cleanTitle}</div>
-          ${r.existing ? `<div class="gsLoc">${fixtureNameById(r.existing.furnitureId)} — ${drawerNameById(r.existing.furnitureId, r.existing.drawerId)}</div>` : `<div class="gsUnplaced">Sin ubicar</div>`}
+          <div>${r.sku ? r.sku + ' — ' : ''}${r.cleanTitle}${priceHtml}</div>
+          ${r.locations.length ? `<div class="gsLoc">${locLabel}</div>` : `<div class="gsUnplaced">Sin ubicar</div>`}
         </div>
-        ${r.existing ? '' : '<button class="gsAssignBtn" data-assign="' + i + '">Asignar</button>'}
-      </div>`).join('') || '<div class="gsItem"><div class="gsInfo">Sin resultados.</div></div>';
+        <button class="gsAssignBtn" data-assign="${i}">Asignar</button>
+      </div>`;
+    }).join('') || '<div class="gsItem"><div class="gsInfo">Sin resultados.</div></div>';
 
-    globalSearchResults.querySelectorAll('[data-open-furniture]').forEach(el => {
-      el.addEventListener('click', (e) => {
-        if (e.target.closest('[data-assign]')) return;
-        openViewSheet(el.dataset.openFurniture, el.dataset.openDrawer);
-        globalSearchResults.innerHTML = '';
-        globalSearchInput.value = '';
-      });
+    globalSearchResults.querySelectorAll('.gsItem').forEach((itemEl, i) => {
+      const r = rows[i];
+      const locEl = itemEl.querySelector('.gsLoc');
+      if (locEl && r.locations.length) {
+        locEl.style.cursor = 'pointer';
+        locEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const loc = r.locations[0];
+          openViewSheet(loc.furnitureId, loc.drawerId);
+          globalSearchResults.innerHTML = '';
+          globalSearchInput.value = '';
+        });
+      }
     });
     globalSearchResults.querySelectorAll('[data-assign]').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1454,22 +1485,32 @@ document.addEventListener('click', (e) => {
 });
 
 function openAssignPicker(r){
+  const hasDrawerTypeLocation = r.locations.some(loc => loc.isDrawerType);
   const options = [];
   state.furniture.forEach(f => {
-    f.drawers.forEach(d => options.push({ furnitureId: f.id, drawerId: d.id, label: f.name + ' — ' + d.name }));
+    const fIsDrawerType = isDrawerTypeFixture(f);
+    f.drawers.forEach(d => {
+      const sameDrawer = r.locations.some(loc => loc.drawerId === d.id);
+      const blocked = sameDrawer || (fIsDrawerType && hasDrawerTypeLocation);
+      const note = sameDrawer ? '(ya aquí)' : (blocked ? '(ya en otro cajón)' : '');
+      options.push({ furnitureId: f.id, drawerId: d.id, label: f.name + ' — ' + d.name, blocked, note });
+    });
   });
-  const listHtml = options.map((o,i) => `<div class="rowItem"><button class="rowBtn" data-pick="${i}">${o.label}</button></div>`).join('') || '<div class="small">No hay cajones disponibles.</div>';
+  const listHtml = options.map((o,i) => `
+    <div class="rowItem">
+      <button class="rowBtn" data-pick="${i}" ${o.blocked ? 'disabled style="opacity:.5;"' : ''}>${o.label} ${o.note ? '<span class="small">' + o.note + '</span>' : ''}</button>
+    </div>`).join('') || '<div class="small">No hay cajones disponibles.</div>';
   openSheet(`
     <div class="sheetHeader"><h2>Asignar: ${r.cleanTitle}</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
     ${listHtml}
   `);
-  sheet.querySelectorAll('[data-pick]').forEach(b => {
+  sheet.querySelectorAll('[data-pick]:not(:disabled)').forEach(b => {
     b.addEventListener('click', () => {
       const o = options[Number(b.dataset.pick)];
       pushUndo();
       const f = state.furniture.find(x => x.id === o.furnitureId);
       const d = f.drawers.find(x => x.id === o.drawerId);
-      d.products.push({ name: formatProductName(r.sku, r.cleanTitle), image: r.image, url: r.url ? ('https://koroshishop.com' + r.url) : '' });
+      d.products.push({ name: formatProductName(r.sku, r.cleanTitle), image: r.image, url: r.url ? ('https://koroshishop.com' + r.url) : '', price: r.price || '' });
       persist();
       globalSearchInput.value = '';
       globalSearchResults.innerHTML = '';
@@ -1497,7 +1538,7 @@ function renderAllItemsList(){
     f.drawers.forEach(d => {
       d.products.forEach(p => {
         const parsed = parseProductName(productLabel(p));
-        all.push({ sku: parsed.sku, title: parsed.title, image: productImage(p), furnitureId: f.id, drawerId: d.id, furnitureName: f.name, drawerName: d.name });
+        all.push({ raw: p, sku: parsed.sku, title: parsed.title, image: productImage(p), furnitureId: f.id, drawerId: d.id, furnitureName: f.name, drawerName: d.name });
       });
     });
   });
@@ -1505,7 +1546,7 @@ function renderAllItemsList(){
   const rows = all.map(item => `
     <div class="rowItem" data-open-furniture="${item.furnitureId}" data-open-drawer="${item.drawerId}" style="cursor:pointer;">
       ${item.image ? `<img class="prodThumb lightboxable" src="${item.image}">` : ''}
-      <span style="flex:1;">${item.sku ? item.sku + ' — ' + item.title : item.title}<br><span class="small">${item.furnitureName} — ${item.drawerName}</span></span>
+      <span style="flex:1;">${productDisplayHtml(item.raw)}<br><span class="small">${item.furnitureName} — ${item.drawerName}</span></span>
     </div>`).join('') || '<div class="small">No hay artículos en esta tienda.</div>';
   const missingCount = all.filter(item => !item.sku).length;
   openSheet(`
@@ -1541,10 +1582,11 @@ async function updateAllSkus(){
       if (match && sku) {
         const newName = formatProductName(sku, cleanKoroshiTitle(match.title));
         if (typeof t.p === 'string') {
-          t.d.products[t.i] = { name: newName, image: match.image || '', url: match.url ? ('https://koroshishop.com' + match.url) : '' };
+          t.d.products[t.i] = { name: newName, image: match.image || '', url: match.url ? ('https://koroshishop.com' + match.url) : '', price: match.price || '' };
         } else {
           t.p.name = newName;
           if (!t.p.image && match.image) t.p.image = match.image;
+          if (!t.p.price && match.price) t.p.price = match.price;
         }
         updated++;
       } else {

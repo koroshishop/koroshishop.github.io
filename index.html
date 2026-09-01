@@ -464,6 +464,7 @@ storeSelect.addEventListener('change', () => {
   localDirtySinceLoad = false;
   sheet.classList.remove('open');
   sheetOverlay.classList.remove('open');
+  document.querySelectorAll('.selectionBox').forEach(el => el.remove());
   render();
   updateMapHeight();
   switchToStore(currentStore);

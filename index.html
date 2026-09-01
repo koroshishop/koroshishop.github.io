@@ -56,6 +56,14 @@
   .pwModalBox button { flex:1; padding:11px; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; }
   .pwModalBox .pwModalOk { background:#fff; color:#111; }
   .pwModalBox .pwModalCancel { background:#1a1a1a; color:#fff; border:1px solid #333; }
+  #appModalOverlay { position:fixed; inset:0; background:rgba(10,10,10,0.9); z-index:120; display:none; align-items:center; justify-content:center; padding:20px; }
+  #appModalOverlay.open { display:flex; }
+  .appModalBox { background:#0a0a0a; border:1px solid #333; border-radius:14px; padding:26px 22px; max-width:340px; width:100%; text-align:center; }
+  .appModalBox p { font-size:14px; color:#fff; margin:0 0 20px; line-height:1.5; white-space:pre-line; }
+  .appModalBox .appModalRow { display:flex; gap:8px; }
+  .appModalBox button { flex:1; padding:11px; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; }
+  .appModalBox .appModalOk { background:#fff; color:#111; }
+  .appModalBox .appModalCancel { background:#1a1a1a; color:#fff; border:1px solid #333; }
   button { border:none; border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; }
   .btn-primary { background:var(--primary); color:#fff; }
   .btn-ghost { background:#e5e7eb; color:#111; }
@@ -196,6 +204,13 @@
       <button class="pwModalCancel" id="pwModalCancelBtn">Cancelar</button>
       <button class="pwModalOk" id="pwModalOkBtn">Continuar</button>
     </div>
+  </div>
+</div>
+
+<div id="appModalOverlay">
+  <div class="appModalBox">
+    <p id="appModalMessage"></p>
+    <div class="appModalRow" id="appModalRow"></div>
   </div>
 </div>
 
@@ -481,6 +496,40 @@ async function fetchWithTimeout(url, options, timeoutMs){
   }
 }
 
+function appAlert(message){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('appModalOverlay');
+    const msgEl = document.getElementById('appModalMessage');
+    const rowEl = document.getElementById('appModalRow');
+    msgEl.textContent = message;
+    rowEl.innerHTML = '<button class="appModalOk" id="appModalOkOnly">Aceptar</button>';
+    overlay.classList.add('open');
+    document.getElementById('appModalOkOnly').addEventListener('click', () => {
+      overlay.classList.remove('open');
+      resolve();
+    });
+  });
+}
+
+function appConfirm(message, okLabel, cancelLabel){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('appModalOverlay');
+    const msgEl = document.getElementById('appModalMessage');
+    const rowEl = document.getElementById('appModalRow');
+    msgEl.textContent = message;
+    rowEl.innerHTML =
+      '<button class="appModalCancel" id="appModalCancelBtn2">' + (cancelLabel || 'Cancelar') + '</button>' +
+      '<button class="appModalOk" id="appModalOkBtn2">' + (okLabel || 'Aceptar') + '</button>';
+    overlay.classList.add('open');
+    function cleanup(result){
+      overlay.classList.remove('open');
+      resolve(result);
+    }
+    document.getElementById('appModalOkBtn2').addEventListener('click', () => cleanup(true));
+    document.getElementById('appModalCancelBtn2').addEventListener('click', () => cleanup(false));
+  });
+}
+
 function cleanKoroshiTitle(title){
   let t = title;
   // Koroshi shows up in different shapes: "... | Koroshi", "... – Koroshi Granate",
@@ -532,15 +581,16 @@ async function saveToCloud(code, forcing){
     });
     const data = await res.json();
     if (res.status === 401) {
-      alert('Contraseña incorrecta.');
+      await appAlert('Contraseña incorrecta.');
       delete sessionPasswords[code];
       return;
     }
     if (res.status === 409) {
       const serverVersion = data.current ? data.current.version : '?';
-      const wantForce = confirm(
+      const wantForce = await appConfirm(
         'Alguien más guardó cambios en ' + code + ' (tu versión: ' + baseVersionSent + ', versión en el servidor: ' + serverVersion + ').\n\n' +
-        'Aceptar = sobrescribir con tus cambios actuales de todas formas.\nCancelar = no guardar, recargar primero.'
+        'Aceptar = sobrescribir con tus cambios actuales de todas formas.\nCancelar = no guardar, recargar primero.',
+        'Sobrescribir', 'Cancelar'
       );
       if (wantForce) {
         remoteVersion = data.current ? data.current.version : remoteVersion;
@@ -549,15 +599,15 @@ async function saveToCloud(code, forcing){
       return;
     }
     if (!res.ok) {
-      alert('No se pudo guardar (' + (data.error || res.status) + ').');
+      await appAlert('No se pudo guardar (' + (data.error || res.status) + ').');
       return;
     }
     sessionPasswords[code] = password;
     remoteVersion = data.version;
     localDirtySinceLoad = false;
-    alert('Guardado en la nube.');
+    await appAlert('Guardado en la nube.');
   } catch (err) {
-    alert('No se pudo conectar con el servidor (' + err.message + ').');
+    await appAlert('No se pudo conectar con el servidor (' + err.message + ').');
   }
 }
 
@@ -1096,11 +1146,11 @@ function copyFixture(furnitureId){
   clipboardFixtures = [JSON.parse(JSON.stringify(f))];
   closeQuickMenu(); render();
 }
-function duplicateFixture(furnitureId){
+async function duplicateFixture(furnitureId){
   pushUndo();
   const f = state.furniture.find(x => x.id === furnitureId);
   if (f.type === 'counter' && hasCounterAmong(state.furniture)) {
-    alert('Solo puede haber un Mostrador.');
+    await appAlert('Solo puede haber un Mostrador.');
     return;
   }
   const copy = reidFixture(f);
@@ -1119,11 +1169,11 @@ function copySelection(){
     .map(f => JSON.parse(JSON.stringify(f)));
   render();
 }
-function duplicateSelection(){
+async function duplicateSelection(){
   const items = Array.from(selectedIds).map(id => state.furniture.find(f => f.id === id)).filter(Boolean);
   if (!items.length) return;
   if (items.some(f => f.type === 'counter') && hasCounterAmong(state.furniture)) {
-    alert('Solo puede haber un Mostrador.');
+    await appAlert('Solo puede haber un Mostrador.');
     return;
   }
   pushUndo();
@@ -1147,10 +1197,10 @@ function deleteSelection(){
   persist(); render();
 }
 
-function pasteFixturesAt(x, y){
+async function pasteFixturesAt(x, y){
   if (!clipboardFixtures || !clipboardFixtures.length) return;
   if (hasCounterAmong(clipboardFixtures) && hasCounterAmong(state.furniture)) {
-    alert('Solo puede haber un Mostrador.');
+    await appAlert('Solo puede haber un Mostrador.');
     closeMapContextMenu(); render();
     return;
   }
@@ -1638,8 +1688,8 @@ async function updateAllSkus(){
     const parsed = parseProductName(productLabel(p));
     if (!parsed.sku) targets.push({ f, d, p, i, title: parsed.title });
   })));
-  if (!targets.length) { alert('Todos los artículos ya tienen SKU.'); return; }
-  if (!confirm('Se buscarán ' + targets.length + ' artículo(s) en Koroshi para completar su SKU. ¿Continuar?')) return;
+  if (!targets.length) { await appAlert('Todos los artículos ya tienen SKU.'); return; }
+  if (!(await appConfirm('Se buscarán ' + targets.length + ' artículo(s) en Koroshi para completar su SKU. ¿Continuar?', 'Continuar'))) return;
   pushUndo();
   let updated = 0, failed = 0;
   for (const t of targets) {
@@ -1665,11 +1715,11 @@ async function updateAllSkus(){
     }
   }
   persist();
-  alert('Actualizado: ' + updated + '. Sin coincidencia: ' + failed + '.');
+  await appAlert('Actualizado: ' + updated + '. Sin coincidencia: ' + failed + '.');
   renderAllItemsList();
 }
 
-function cleanAllLegacyTitles(){
+async function cleanAllLegacyTitles(){
   let fixed = 0;
   state.furniture.forEach(f => f.drawers.forEach(d => d.products.forEach((p, i) => {
     const parsed = parseProductName(productLabel(p));
@@ -1685,10 +1735,10 @@ function cleanAllLegacyTitles(){
       }
     }
   })));
-  if (!fixed) { alert('Ningún título necesitaba limpieza.'); return; }
+  if (!fixed) { await appAlert('Ningún título necesitaba limpieza.'); return; }
   pushUndo();
   persist();
-  alert('Nombres corregidos: ' + fixed + '.');
+  await appAlert('Nombres corregidos: ' + fixed + '.');
   renderAllItemsList();
 }
 
@@ -1698,8 +1748,8 @@ async function updateAllPrices(){
     const parsed = parseProductName(productLabel(p));
     if (parsed.sku && !productPrice(p)) targets.push({ f, d, p, i, sku: parsed.sku, title: parsed.title });
   })));
-  if (!targets.length) { alert('Todos los artículos con SKU ya tienen precio.'); return; }
-  if (!confirm('Se buscarán ' + targets.length + ' artículo(s) en Koroshi para completar su precio. ¿Continuar?')) return;
+  if (!targets.length) { await appAlert('Todos los artículos con SKU ya tienen precio.'); return; }
+  if (!(await appConfirm('Se buscarán ' + targets.length + ' artículo(s) en Koroshi para completar su precio. ¿Continuar?', 'Continuar'))) return;
   pushUndo();
   let updated = 0, failed = 0;
   for (const t of targets) {
@@ -1733,7 +1783,7 @@ async function updateAllPrices(){
     }
   }
   persist();
-  alert('Actualizado: ' + updated + '. Sin coincidencia: ' + failed + '.');
+  await appAlert('Actualizado: ' + updated + '. Sin coincidencia: ' + failed + '.');
   renderAllItemsList();
 }
 
@@ -1743,8 +1793,8 @@ async function updateAllImages(){
     const parsed = parseProductName(productLabel(p));
     if (parsed.sku) targets.push({ f, d, p, i, sku: parsed.sku });
   })));
-  if (!targets.length) { alert('No hay artículos con SKU.'); return; }
-  if (!confirm('Se refrescará la imagen de ' + targets.length + ' artículo(s) desde Koroshi. ¿Continuar?')) return;
+  if (!targets.length) { await appAlert('No hay artículos con SKU.'); return; }
+  if (!(await appConfirm('Se refrescará la imagen de ' + targets.length + ' artículo(s) desde Koroshi. ¿Continuar?', 'Continuar'))) return;
   pushUndo();
   let updated = 0, failed = 0;
   for (const t of targets) {
@@ -1771,7 +1821,7 @@ async function updateAllImages(){
     }
   }
   persist();
-  alert('Imágenes actualizadas: ' + updated + '. Sin coincidencia: ' + failed + '.');
+  await appAlert('Imágenes actualizadas: ' + updated + '. Sin coincidencia: ' + failed + '.');
   renderAllItemsList();
 }
 

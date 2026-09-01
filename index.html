@@ -1384,7 +1384,6 @@ function openViewSheet(furnitureId, drawerId){
         const products = await searchKoroshi(q);
         statusEl.textContent = products.length ? '' : 'Sin resultados.';
         const targetIsDrawerType = isDrawerTypeFixture(f);
-<<<<<<< HEAD
                 function addDrawerVariant(p, v){
           pushUndo();
           const cleanTitle = cleanKoroshiTitle(p.title);
@@ -1394,9 +1393,6 @@ function openViewSheet(furnitureId, drawerId){
           openViewSheet(furnitureId, drawerId);
         }
         function renderProductList(){
-=======
-                function renderProductList(){
->>>>>>> 3ce5ae1ba8dae687945c047de7d62e599bb6470d
           resultsEl.innerHTML = products.map((p,i) => {
             const cleanTitle = cleanKoroshiTitle(p.title);
             const priceHtml = p.price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(p.price) + ' €</b>' : '';
@@ -1409,16 +1405,12 @@ function openViewSheet(furnitureId, drawerId){
             </div>`;
           }).join('');
           resultsEl.querySelectorAll('[data-prod-i]').forEach(el => {
-<<<<<<< HEAD
             el.addEventListener('click', () => {
               const p = products[Number(el.dataset.prodI)];
               const variants = (p.variants && p.variants.length) ? p.variants : [{ sku:'', color:'', image:'' }];
               if (variants.length <= 1) { addDrawerVariant(p, variants[0]); return; }
               renderColorPicker(p);
             });
-=======
-            el.addEventListener('click', () => renderColorPicker(products[Number(el.dataset.prodI)]));
->>>>>>> 3ce5ae1ba8dae687945c047de7d62e599bb6470d
           });
         }
 
@@ -1447,16 +1439,7 @@ function openViewSheet(furnitureId, drawerId){
           document.getElementById('backToProductsBtn').addEventListener('click', renderProductList);
           resultsEl.querySelectorAll('[data-color-i]:not([data-disabled])').forEach(el => {
             el.addEventListener('click', () => {
-<<<<<<< HEAD
               addDrawerVariant(p, variants[Number(el.dataset.colorI)]);
-=======
-              pushUndo();
-              const v = variants[Number(el.dataset.colorI)];
-              const sku = v.sku ? trimSkuZeros(v.sku) : '';
-              d.products.push({ name: formatProductName(sku, cleanTitle), image: v.image || p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '', price: p.price || '' });
-              persist();
-              openViewSheet(furnitureId, drawerId);
->>>>>>> 3ce5ae1ba8dae687945c047de7d62e599bb6470d
             });
           });
         }
@@ -1635,7 +1618,6 @@ document.addEventListener('click', (e) => {
 function openColorPickerForAssign(p){
   const cleanTitle = cleanKoroshiTitle(p.title);
   const variants = (p.variants && p.variants.length) ? p.variants : [{ sku:'', color:'', image:'' }];
-<<<<<<< HEAD
   if (variants.length <= 1) {
     const v = variants[0];
     const sku = v.sku ? trimSkuZeros(v.sku) : '';
@@ -1645,8 +1627,6 @@ function openColorPickerForAssign(p){
     });
     return;
   }
-=======
->>>>>>> 3ce5ae1ba8dae687945c047de7d62e599bb6470d
   const rowsHtml = variants.map((v,i) => {
     const sku = v.sku ? trimSkuZeros(v.sku) : '';
     const key = (sku || p.title).trim().toLowerCase();

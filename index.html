@@ -554,6 +554,13 @@ function cleanKoroshiTitle(title){
   t = t.replace(/^[-–—|]\s*/, '').replace(/\s*[-–—|]\s*$/, '').trim();
   return t;
 }
+
+function productHasVariantSku(r, sku){
+  return (r.variants || []).some(v => v.sku && trimSkuZeros(v.sku) === sku);
+}
+function getVariantBySku(r, sku){
+  return (r.variants || []).some(v => v.sku && trimSkuZeros(v.sku) === sku);
+} 
 function trimSkuZeros(sku){
   // Shopify SKU format here is BASE-NUMBER-SIZE (e.g. 2621PT87-000014-S) — drop the size, then strip leading zeros from the number
   const parts = sku.split('-');

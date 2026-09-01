@@ -2129,7 +2129,7 @@ function updateMapHeight(){
     if (bottom > maxYPercent) maxYPercent = bottom;
   });
   const paddedPercent = Math.min(100, maxYPercent + 8); // small buffer below the lowest piece
-  const heightPx = wrapWidth * (paddedPercent / 100) * MAP_ASPECT;
+  const heightPx = wrapWidth * (paddedPercent / 100) / MAP_ASPECT;
   mapEl.style.height = heightPx + 'px';
 }
 

@@ -1248,13 +1248,19 @@ function findProductLocations(key){
 function openViewSheet(furnitureId, drawerId){
   const f = state.furniture.find(x => x.id === furnitureId);
   const d = f.drawers.find(x => x.id === drawerId);
-  let items = d.products.map((p,i) => `
+  let items = d.products.map((p,i) => {
+    const parsed = parseProductName(productLabel(p));
+    const price = productPrice(p);
+    return `
     <div class="rowItem">
       ${productImage(p) ? `<img class="prodThumb lightboxable" src="${productImage(p)}">` : ''}
-      <span style="flex:1;">${productDisplayHtml(p)}</span>
+      <span style="flex:1;">
+        <b>${parsed.sku || ''}</b>${parsed.sku && price ? ' — ' : ''}${price ? '<b style="color:#2563eb;">' + price + ' €</b>' : ''}<br>
+        ${parsed.title}
+      </span>
       <button class="del" data-idx="${i}">Quitar</button>
-    </div>`
-  ).join('') || '<div class="small">Vacío.</div>';
+    </div>`;
+  }).join('') || '<div class="small">Vacío.</div>';
   openSheet(`
     <div class="sheetHeader"><h2>${f.name} — ${d.name}</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
     <div id="productList">${items}</div>
@@ -1585,11 +1591,13 @@ function renderAllItemsList(){
     </div>`).join('') || '<div class="small">No hay artículos en esta tienda.</div>';
 
   const missingCount = all.filter(item => !item.sku).length;
+  const missingPriceCount = all.filter(item => item.sku && !item.price).length;
 
   openSheet(`
     <div class="sheetHeader"><h2>Todos los artículos (${all.length})</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
     ${messyTitleCount ? `<button class="btn-ghost" id="cleanTitlesBtn" style="margin-bottom:8px;width:100%;">Limpiar nombres (${messyTitleCount} con "Koroshi")</button>` : ''}
-    ${missingCount ? `<button class="btn-ghost" id="updateAllBtn" style="margin-bottom:10px;width:100%;">Actualizar SKU (${missingCount} pendiente${missingCount === 1 ? '' : 's'})</button>` : ''}
+    ${missingCount ? `<button class="btn-ghost" id="updateAllBtn" style="margin-bottom:8px;width:100%;">Actualizar SKU (${missingCount} pendiente${missingCount === 1 ? '' : 's'})</button>` : ''}
+    ${missingPriceCount ? `<button class="btn-ghost" id="updatePricesBtn" style="margin-bottom:10px;width:100%;">Actualizar precio (${missingPriceCount} pendiente${missingPriceCount === 1 ? '' : 's'})</button>` : ''}
     ${rows}
   `);
 
@@ -1603,6 +1611,8 @@ function renderAllItemsList(){
   if (updateAllBtn) updateAllBtn.addEventListener('click', updateAllSkus);
   const cleanTitlesBtn = document.getElementById('cleanTitlesBtn');
   if (cleanTitlesBtn) cleanTitlesBtn.addEventListener('click', cleanAllLegacyTitles);
+  const updatePricesBtn = document.getElementById('updatePricesBtn');
+  if (updatePricesBtn) updatePricesBtn.addEventListener('click', updateAllPrices);
 }
 
 async function updateAllSkus(){
@@ -1662,6 +1672,43 @@ function cleanAllLegacyTitles(){
   pushUndo();
   persist();
   alert('Nombres corregidos: ' + fixed + '.');
+  renderAllItemsList();
+}
+
+async function updateAllPrices(){
+  const targets = [];
+  state.furniture.forEach(f => f.drawers.forEach(d => d.products.forEach((p, i) => {
+    const parsed = parseProductName(productLabel(p));
+    if (parsed.sku && !productPrice(p)) targets.push({ f, d, p, i, sku: parsed.sku, title: parsed.title });
+  })));
+  if (!targets.length) { alert('Todos los artículos con SKU ya tienen precio.'); return; }
+  if (!confirm('Se buscarán ' + targets.length + ' artículo(s) en Koroshi para completar su precio. ¿Continuar?')) return;
+  pushUndo();
+  let updated = 0, failed = 0;
+  for (const t of targets) {
+    try {
+      const results = await searchKoroshi(t.sku);
+      const match = results.find(r => {
+        const rsku = (r.variants && r.variants[0] && r.variants[0].sku) ? trimSkuZeros(r.variants[0].sku) : '';
+        return rsku === t.sku;
+      }) || results[0];
+      if (match && match.price) {
+        if (typeof t.p === 'string') {
+          t.d.products[t.i] = { name: productLabel(t.p), price: match.price, image: match.image || '' };
+        } else {
+          t.p.price = match.price;
+          if (!t.p.image && match.image) t.p.image = match.image;
+        }
+        updated++;
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      failed++;
+    }
+  }
+  persist();
+  alert('Actualizado: ' + updated + '. Sin coincidencia: ' + failed + '.');
   renderAllItemsList();
 }
 

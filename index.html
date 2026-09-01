@@ -1215,9 +1215,10 @@ function productImage(p){
   return p.image;
 }
 function productPrice(p){ return (p && typeof p === 'object' && p.price) ? p.price : ''; }
+function formatPriceEuro(price){ return price ? String(price).replace('.', ',') : ''; }
 function productDisplayHtml(p){
   const price = productPrice(p);
-  return productLabel(p) + (price ? ' — <b style="color:#2563eb;">' + price + ' €</b>' : '');
+  return productLabel(p) + (price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(price) + ' €</b>' : '');
 }
 function isDrawerTypeFixture(f){ return f && (f.type === 'table' || f.type === 'counter'); }
 function parseProductName(rawName){
@@ -1259,7 +1260,7 @@ function openViewSheet(furnitureId, drawerId){
     <div class="rowItem">
       ${productImage(p) ? `<img class="prodThumb lightboxable" src="${productImage(p)}">` : ''}
       <span style="flex:1;">
-        <b>${parsed.sku || ''}</b>${parsed.sku && price ? ' — ' : ''}${price ? '<b style="color:#2563eb;">' + price + ' €</b>' : ''}<br>
+        <b>${parsed.sku || ''}</b>${parsed.sku && price ? ' — ' : ''}${price ? '<b style="color:#2563eb;">' + formatPriceEuro(price) + ' €</b>' : ''}<br>
         ${parsed.title}
       </span>
       <button class="del" data-idx="${i}">Quitar</button>
@@ -1314,7 +1315,7 @@ function openViewSheet(furnitureId, drawerId){
             disabled = true;
             dupNote = 'Ya está en otro cajón';
           }
-          const priceHtml = p.price ? ' — <b style="color:#2563eb;">' + p.price + ' €</b>' : '';
+          const priceHtml = p.price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(p.price) + ' €</b>' : '';
           return `
           <div class="searchResultItem${disabled ? ' disabled' : ''}" data-i="${i}" ${disabled ? 'data-disabled="1"' : ''}>
             <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
@@ -1483,7 +1484,7 @@ globalSearchInput.addEventListener('input', () => {
     });
     globalSearchResults.innerHTML = rows.map((r,i) => {
       const locLabel = r.locations.map(loc => fixtureNameById(loc.furnitureId) + ' — ' + drawerNameById(loc.furnitureId, loc.drawerId)).join(', ');
-      const priceHtml = r.price ? ' — <b style="color:#2563eb;">' + r.price + ' €</b>' : '';
+      const priceHtml = r.price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(r.price) + ' €</b>' : '';
       return `
       <div class="gsItem" data-i="${i}">
         <img src="${r.image}" onerror="this.style.visibility='hidden'">
@@ -1588,7 +1589,7 @@ function renderAllItemsList(){
     <div class="rowItem" data-open-furniture="${item.furnitureId}" data-open-drawer="${item.drawerId}">
       ${item.image ? `<img class="prodThumb lightboxable" src="${item.image}">` : ''}
       <span style="flex:1; cursor:pointer;" data-locate="${item.furnitureId}">
-        <b>${item.sku ? item.sku : ''}</b>${item.sku && item.price ? ' — ' : ''}${item.price ? '<b style="color:#2563eb;">' + item.price + ' €</b>' : ''}<br>
+        <b>${item.sku ? item.sku : ''}</b>${item.sku && item.price ? ' — ' : ''}${item.price ? '<b style="color:#2563eb;">' + formatPriceEuro(item.price) + ' €</b>' : ''}<br>
         ${item.title}<br>
         <span class="small">${item.furnitureName} — ${item.drawerName}</span>
       </span>
@@ -1691,10 +1692,18 @@ async function updateAllPrices(){
   let updated = 0, failed = 0;
   for (const t of targets) {
     try {
-      const results = await searchKoroshi(t.sku);
+      // Search the base code (SKU minus its trailing color-number segment) — Koroshi's
+      // search matches this far more reliably than the full "BASE-NUMBER" string, and
+      // returns the whole colorway family so we can pick the exact SKU match from it.
+      const baseParts = t.sku.split('-');
+      const searchTerm = baseParts.length > 1 ? baseParts.slice(0, -1).join('-') : t.sku;
+      const results = await searchKoroshi(searchTerm);
       const match = results.find(r => {
         const rsku = (r.variants && r.variants[0] && r.variants[0].sku) ? trimSkuZeros(r.variants[0].sku) : '';
         return rsku === t.sku;
+      }) || results.find(r => {
+        const rsku = (r.variants && r.variants[0] && r.variants[0].sku) ? trimSkuZeros(r.variants[0].sku) : '';
+        return rsku.startsWith(searchTerm);
       }) || results[0];
       if (match && match.price) {
         if (typeof t.p === 'string') {

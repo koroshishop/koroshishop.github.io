@@ -1209,7 +1209,11 @@ sheetOverlay.addEventListener('click', closeSheet);
 
 // --- VIEW: contents of one drawer / hanger ---
 function productLabel(p){ return typeof p === 'string' ? p : p.name; }
-function productImage(p){ return (p && typeof p === 'object') ? p.image : null; }
+function productImage(p){
+  if (!p || typeof p !== 'object' || !p.image) return null;
+  if (/\.(mp4|webm|mov|gif)(\?|$)/i.test(p.image)) return null;
+  return p.image;
+}
 function productPrice(p){ return (p && typeof p === 'object' && p.price) ? p.price : ''; }
 function productDisplayHtml(p){
   const price = productPrice(p);

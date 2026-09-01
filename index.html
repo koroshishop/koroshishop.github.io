@@ -392,7 +392,12 @@ async function attemptEnter(){
     appHeader.style.display = '';
     document.getElementById('mapWrap').style.display = '';
     render();
-    loadFromCloud(currentStore);
+    loadFromCloud(currentStore).then(() => {
+      if (shouldAutoRefresh(code)) {
+        markAutoRefreshed(code);
+        autoRefreshPricesAndImages(code);
+      }
+    });
   } catch (err) {
     welcomeError.textContent = 'No se pudo conectar con el servidor.';
     welcomeEnterBtn.disabled = false;
@@ -427,7 +432,11 @@ storeSelect.addEventListener('change', () => {
 
 async function switchToStore(code){
   await verifyPasswordFor(code);
-  loadFromCloud(code);
+  await loadFromCloud(code);
+  if (shouldAutoRefresh(code)) {
+    markAutoRefreshed(code);
+    autoRefreshPricesAndImages(code);
+  }
 }
 
 function persist(){ localStorage.setItem(storageKeyFor(currentStore), JSON.stringify(state)); }
@@ -1602,7 +1611,8 @@ function renderAllItemsList(){
     <div class="sheetHeader"><h2>Todos los artículos (${all.length})</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
     ${messyTitleCount ? `<button class="btn-ghost" id="cleanTitlesBtn" style="margin-bottom:8px;width:100%;">Limpiar nombres (${messyTitleCount} con "Koroshi")</button>` : ''}
     ${missingCount ? `<button class="btn-ghost" id="updateAllBtn" style="margin-bottom:8px;width:100%;">Actualizar SKU (${missingCount} pendiente${missingCount === 1 ? '' : 's'})</button>` : ''}
-    ${missingPriceCount ? `<button class="btn-ghost" id="updatePricesBtn" style="margin-bottom:10px;width:100%;">Actualizar precio (${missingPriceCount} pendiente${missingPriceCount === 1 ? '' : 's'})</button>` : ''}
+    ${missingPriceCount ? `<button class="btn-ghost" id="updatePricesBtn" style="margin-bottom:8px;width:100%;">Actualizar precio (${missingPriceCount} pendiente${missingPriceCount === 1 ? '' : 's'})</button>` : ''}
+    <button class="btn-ghost" id="updateImagesBtn" style="margin-bottom:10px;width:100%;">Refrescar imágenes</button>
     ${rows}
   `);
 
@@ -1618,6 +1628,8 @@ function renderAllItemsList(){
   if (cleanTitlesBtn) cleanTitlesBtn.addEventListener('click', cleanAllLegacyTitles);
   const updatePricesBtn = document.getElementById('updatePricesBtn');
   if (updatePricesBtn) updatePricesBtn.addEventListener('click', updateAllPrices);
+  const updateImagesBtn = document.getElementById('updateImagesBtn');
+  if (updateImagesBtn) updateImagesBtn.addEventListener('click', updateAllImages);
 }
 
 async function updateAllSkus(){
@@ -1641,7 +1653,7 @@ async function updateAllSkus(){
           t.d.products[t.i] = { name: newName, image: match.image || '', url: match.url ? ('https://koroshishop.com' + match.url) : '', price: match.price || '' };
         } else {
           t.p.name = newName;
-          if (!t.p.image && match.image) t.p.image = match.image;
+          if (match.image) t.p.image = match.image; // always refresh — old stored images may be a poor video-derived frame
           if (!t.p.price && match.price) t.p.price = match.price;
         }
         updated++;
@@ -1710,7 +1722,7 @@ async function updateAllPrices(){
           t.d.products[t.i] = { name: productLabel(t.p), price: match.price, image: match.image || '' };
         } else {
           t.p.price = match.price;
-          if (!t.p.image && match.image) t.p.image = match.image;
+          if (match.image) t.p.image = match.image; // always refresh — old stored images may be a poor video-derived frame
         }
         updated++;
       } else {
@@ -1723,6 +1735,95 @@ async function updateAllPrices(){
   persist();
   alert('Actualizado: ' + updated + '. Sin coincidencia: ' + failed + '.');
   renderAllItemsList();
+}
+
+async function updateAllImages(){
+  const targets = [];
+  state.furniture.forEach(f => f.drawers.forEach(d => d.products.forEach((p, i) => {
+    const parsed = parseProductName(productLabel(p));
+    if (parsed.sku) targets.push({ f, d, p, i, sku: parsed.sku });
+  })));
+  if (!targets.length) { alert('No hay artículos con SKU.'); return; }
+  if (!confirm('Se refrescará la imagen de ' + targets.length + ' artículo(s) desde Koroshi. ¿Continuar?')) return;
+  pushUndo();
+  let updated = 0, failed = 0;
+  for (const t of targets) {
+    try {
+      const baseParts = t.sku.split('-');
+      const searchTerm = baseParts.length > 1 ? baseParts.slice(0, -1).join('-') : t.sku;
+      const results = await searchKoroshi(searchTerm);
+      const match = results.find(r => {
+        const rsku = (r.variants && r.variants[0] && r.variants[0].sku) ? trimSkuZeros(r.variants[0].sku) : '';
+        return rsku === t.sku;
+      });
+      if (match && match.image) {
+        if (typeof t.p === 'string') {
+          t.d.products[t.i] = { name: productLabel(t.p), image: match.image };
+        } else {
+          t.p.image = match.image;
+        }
+        updated++;
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      failed++;
+    }
+  }
+  persist();
+  alert('Imágenes actualizadas: ' + updated + '. Sin coincidencia: ' + failed + '.');
+  renderAllItemsList();
+}
+
+async function autoRefreshPricesAndImages(code){
+  // Runs quietly after login/store-switch — no prompts, no alerts. Best-effort:
+  // any item that fails to match just keeps its current price/image untouched.
+  const targets = [];
+  state.furniture.forEach(f => f.drawers.forEach(d => d.products.forEach((p, i) => {
+    const parsed = parseProductName(productLabel(p));
+    if (parsed.sku) targets.push({ f, d, p, i, sku: parsed.sku });
+  })));
+  if (!targets.length) return;
+
+  let changed = false;
+  for (const t of targets) {
+    try {
+      const baseParts = t.sku.split('-');
+      const searchTerm = baseParts.length > 1 ? baseParts.slice(0, -1).join('-') : t.sku;
+      const results = await searchKoroshi(searchTerm);
+      const match = results.find(r => {
+        const rsku = (r.variants && r.variants[0] && r.variants[0].sku) ? trimSkuZeros(r.variants[0].sku) : '';
+        return rsku === t.sku;
+      });
+      if (!match) continue;
+
+      if (typeof t.p === 'string') {
+        const newP = { name: productLabel(t.p) };
+        if (match.price) newP.price = match.price;
+        if (match.image) newP.image = match.image;
+        t.d.products[t.i] = newP;
+        changed = true;
+      } else {
+        if (match.price && match.price !== t.p.price) { t.p.price = match.price; changed = true; }
+        if (match.image && match.image !== t.p.image) { t.p.image = match.image; changed = true; }
+      }
+    } catch (err) {
+      // network hiccup on this one item — skip it, move on
+    }
+  }
+
+  if (changed && code === currentStore) {
+    persist();
+    render();
+  }
+}
+
+const AUTO_REFRESH_SESSION_KEY_PREFIX = 'storeMapAutoRefreshed_';
+function shouldAutoRefresh(code){
+  return !sessionStorage.getItem(AUTO_REFRESH_SESSION_KEY_PREFIX + code);
+}
+function markAutoRefreshed(code){
+  sessionStorage.setItem(AUTO_REFRESH_SESSION_KEY_PREFIX + code, '1');
 }
 
 const listAllBtn = document.getElementById('listAllBtn');

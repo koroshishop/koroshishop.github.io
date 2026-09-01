@@ -78,9 +78,10 @@
   button { border:none; border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; }
   .btn-primary { background:var(--primary); color:#fff; }
   .btn-ghost { background:#e5e7eb; color:#111; }
-  #mapWrap { padding:10px; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; box-sizing:border-box; }
+  #mapWrap { padding:10px; flex:1; min-height:0; overflow:hidden; box-sizing:border-box; }
+  #mapViewport { width:100%; overflow:hidden; }
   #map {
-    position:relative; width:100%; min-height:200px;
+    position:relative; width:100%; aspect-ratio:16/10;
     background-color:#f5f5f6;
     background-image:
       linear-gradient(to right, rgba(37,99,235,0.15) 1px, transparent 1px),
@@ -252,7 +253,7 @@
   </div>
 </header>
 
-<div id="mapWrap" style="display:none;"><div id="map"></div></div>
+<div id="mapWrap" style="display:none;"><div id="mapViewport"><div id="map"></div></div></div>
 
 <div id="sheetOverlay"></div>
 <div id="sheet"></div>
@@ -2121,23 +2122,24 @@ const priceAlertBtn = document.getElementById('priceAlertBtn');
 priceAlertBtn.addEventListener('click', renderPriceChangesPanel);
 
 function updateMapHeight(){
-  const wrap = document.getElementById('mapWrap');
-  const wrapWidth = mapEl.clientWidth || wrap.clientWidth;
+  const viewport = document.getElementById('mapViewport');
+  const wrapWidth = viewport.clientWidth;
+  if (!wrapWidth) return;
   let maxYPercent = 20; // sensible minimum even on an empty map
   state.furniture.forEach(f => {
     const bottom = f.y + f.h;
     if (bottom > maxYPercent) maxYPercent = bottom;
   });
   const paddedPercent = Math.min(100, maxYPercent + 8); // small buffer below the lowest piece
-  const heightPx = wrapWidth * (paddedPercent / 100) / MAP_ASPECT;
-  mapEl.style.height = heightPx + 'px';
+  const fullHeightPx = wrapWidth / MAP_ASPECT; // matches #map's own real aspect-ratio — keeps coordinate math correct
+  viewport.style.height = (fullHeightPx * (paddedPercent / 100)) + 'px';
 }
 
 const listAllBtn = document.getElementById('listAllBtn');
 listAllBtn.addEventListener('click', renderAllItemsList);
 
 window.addEventListener('resize', updateMapHeight);
-new ResizeObserver(updateMapHeight).observe(document.getElementById('mapWrap'));
+new ResizeObserver(updateMapHeight).observe(document.getElementById('mapViewport'));
 
 </script>
 </body>

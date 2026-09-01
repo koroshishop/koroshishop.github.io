@@ -465,12 +465,14 @@ storeSelect.addEventListener('change', () => {
   sheet.classList.remove('open');
   sheetOverlay.classList.remove('open');
   render();
+  updateMapHeight();
   switchToStore(currentStore);
 });
 
 async function switchToStore(code){
   await verifyPasswordFor(code);
   await loadFromCloud(code);
+  updateMapHeight();
   updatePriceAlertButton();
   if (shouldAutoRefresh(code)) {
     markAutoRefreshed(code);

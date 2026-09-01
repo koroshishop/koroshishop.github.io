@@ -17,6 +17,16 @@
   .storeSelectWrap { display:flex; align-items:center; padding:10px 0 10px 10px; }
   #storeSelect { border:1px solid #111; border-radius:6px; padding:5px 8px; font-size:12px; font-weight:700; background:#fff; color:#111; }
   header .actions { display:flex; gap:8px; align-items:center; padding:10px 0; }
+  .priceAlertBtn { background:#dc2626; color:#fff; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:700; display:none; align-items:center; gap:6px; animation: priceGlow 1.6s ease-in-out infinite; }
+  @keyframes priceGlow {
+    0%, 100% { box-shadow:0 0 0 0 rgba(220,38,38,0.55); }
+    50% { box-shadow:0 0 0 9px rgba(220,38,38,0); }
+  }
+  .priceOld { text-decoration:line-through; color:#dc2626; }
+  .priceNew { color:#2563eb; font-weight:700; }
+  .priceChangeDate { display:block; font-size:11px; color:#9ca3af; margin-top:2px; }
+  .priceChangeActions { display:flex; flex-direction:column; gap:4px; flex-shrink:0; }
+  .priceChangeActions button { font-size:11px; padding:6px 10px; }
   .globalSearchWrap { position:relative; }
   .globalSearchWrap input { padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; width:150px; }
   .globalSearchResults:empty { display:none; }
@@ -224,6 +234,7 @@
     </div>
   </div>
   <div class="actions">
+    <button id="priceAlertBtn" class="priceAlertBtn">⚠️ ¡Cambios de precio!</button>
     <button id="undoBtn" class="btn-ghost" style="display:flex; align-items:center; gap:6px;">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 8 8 8"/></svg>
     </button>
@@ -407,6 +418,7 @@ async function attemptEnter(){
     appHeader.style.display = '';
     document.getElementById('mapWrap').style.display = '';
     render();
+    updatePriceAlertButton();
     loadFromCloud(currentStore).then(() => {
       if (shouldAutoRefresh(code)) {
         markAutoRefreshed(code);
@@ -448,6 +460,7 @@ storeSelect.addEventListener('change', () => {
 async function switchToStore(code){
   await verifyPasswordFor(code);
   await loadFromCloud(code);
+  updatePriceAlertButton();
   if (shouldAutoRefresh(code)) {
     markAutoRefreshed(code);
     autoRefreshPricesAndImages(code);
@@ -1826,16 +1839,21 @@ async function updateAllImages(){
 }
 
 async function autoRefreshPricesAndImages(code){
-  // Runs quietly after login/store-switch — no prompts, no alerts. Best-effort:
-  // any item that fails to match just keeps its current price/image untouched.
+  // Runs quietly after login/store-switch — no prompts. Images update silently
+  // (never a "real" change worth interrupting for). Price CHANGES (old price
+  // exists and differs from new) are queued for review instead of applied —
+  // only a brand-new missing price gets filled in directly.
   const targets = [];
   state.furniture.forEach(f => f.drawers.forEach(d => d.products.forEach((p, i) => {
     const parsed = parseProductName(productLabel(p));
-    if (parsed.sku) targets.push({ f, d, p, i, sku: parsed.sku });
+    if (parsed.sku) targets.push({ f, d, p, i, sku: parsed.sku, title: parsed.title });
   })));
   if (!targets.length) return;
 
-  let changed = false;
+  let imagesChanged = false;
+  const pending = getPendingChanges(code);
+  const nowIso = new Date().toISOString();
+
   for (const t of targets) {
     try {
       const baseParts = t.sku.split('-');
@@ -1847,24 +1865,40 @@ async function autoRefreshPricesAndImages(code){
       });
       if (!match) continue;
 
-      if (typeof t.p === 'string') {
-        const newP = { name: productLabel(t.p) };
-        if (match.price) newP.price = match.price;
-        if (match.image) newP.image = match.image;
-        t.d.products[t.i] = newP;
-        changed = true;
-      } else {
-        if (match.price && match.price !== t.p.price) { t.p.price = match.price; changed = true; }
-        if (match.image && match.image !== t.p.image) { t.p.image = match.image; changed = true; }
+      const currentPrice = productPrice(t.p);
+
+      if (match.price && currentPrice && match.price !== currentPrice) {
+        const already = pending.find(pc => pc.sku === t.sku && pc.furnitureId === t.f.id && pc.drawerId === t.d.id);
+        if (already) {
+          already.newPrice = match.price; // price moved again before being reviewed
+        } else {
+          pending.push({ sku: t.sku, title: t.title, furnitureId: t.f.id, drawerId: t.d.id, oldPrice: currentPrice, newPrice: match.price, detectedAt: nowIso });
+        }
+      } else if (match.price && !currentPrice) {
+        // no price on file yet — fill it in directly, this isn't a "change" to review
+        if (typeof t.p === 'string') { t.d.products[t.i] = { name: productLabel(t.p), price: match.price }; }
+        else { t.p.price = match.price; }
+        imagesChanged = true; // reuse the same persist/render flag
+      }
+
+      if (match.image) {
+        if (typeof t.p === 'string') {
+          if (!productImage(t.d.products[t.i])) { t.d.products[t.i].image = match.image; imagesChanged = true; }
+        } else if (match.image !== t.p.image) {
+          t.p.image = match.image;
+          imagesChanged = true;
+        }
       }
     } catch (err) {
       // network hiccup on this one item — skip it, move on
     }
   }
 
-  if (changed && code === currentStore) {
-    persist();
-    render();
+  setPendingChanges(code, pending);
+
+  if (code === currentStore) {
+    if (imagesChanged) { persist(); render(); }
+    updatePriceAlertButton();
   }
 }
 
@@ -1875,6 +1909,139 @@ function shouldAutoRefresh(code){
 function markAutoRefreshed(code){
   sessionStorage.setItem(AUTO_REFRESH_SESSION_KEY_PREFIX + code, '1');
 }
+
+// --- Pending price-change review queue (per store, local only — not synced to cloud) ---
+const PENDING_PRICE_PREFIX = 'storeMapPendingPrices_v1_';
+function getPendingChanges(code){
+  try { return JSON.parse(localStorage.getItem(PENDING_PRICE_PREFIX + code) || '[]'); }
+  catch (e) { return []; }
+}
+function setPendingChanges(code, arr){
+  localStorage.setItem(PENDING_PRICE_PREFIX + code, JSON.stringify(arr));
+}
+function updatePriceAlertButton(){
+  const pending = getPendingChanges(currentStore);
+  if (pending.length) {
+    priceAlertBtn.style.display = 'flex';
+    priceAlertBtn.textContent = '⚠️ ¡Cambios de precio! (' + pending.length + ')';
+  } else {
+    priceAlertBtn.style.display = 'none';
+  }
+}
+function formatChangeDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }) +
+    ' ' + d.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+}
+function findProductBySku(furnitureId, drawerId, sku){
+  const f = state.furniture.find(x => x.id === furnitureId);
+  if (!f) return null;
+  const d = f.drawers.find(x => x.id === drawerId);
+  if (!d) return null;
+  const idx = d.products.findIndex(p => parseProductName(productLabel(p)).sku === sku);
+  if (idx === -1) return null;
+  return { d, idx, p: d.products[idx] };
+}
+function removePendingChange(record){
+  const pending = getPendingChanges(currentStore).filter(pc =>
+    !(pc.sku === record.sku && pc.furnitureId === record.furnitureId && pc.drawerId === record.drawerId)
+  );
+  setPendingChanges(currentStore, pending);
+}
+function acceptPriceChange(record){
+  const found = findProductBySku(record.furnitureId, record.drawerId, record.sku);
+  if (found) {
+    if (typeof found.p === 'string') {
+      found.d.products[found.idx] = { name: found.p, price: record.newPrice };
+    } else {
+      found.p.price = record.newPrice;
+    }
+    persist();
+  }
+  removePendingChange(record);
+  updatePriceAlertButton();
+}
+function discardPriceChange(record){
+  removePendingChange(record);
+  updatePriceAlertButton();
+}
+async function acceptAllPriceChanges(){
+  const pending = getPendingChanges(currentStore);
+  pending.forEach(record => {
+    const found = findProductBySku(record.furnitureId, record.drawerId, record.sku);
+    if (found) {
+      if (typeof found.p === 'string') {
+        found.d.products[found.idx] = { name: found.p, price: record.newPrice };
+      } else {
+        found.p.price = record.newPrice;
+      }
+    }
+  });
+  persist();
+  setPendingChanges(currentStore, []);
+  updatePriceAlertButton();
+  render();
+}
+async function discardAllPriceChanges(){
+  setPendingChanges(currentStore, []);
+  updatePriceAlertButton();
+}
+
+function renderPriceChangesPanel(){
+  const pending = getPendingChanges(currentStore);
+  const rows = pending.map((record, i) => {
+    const found = findProductBySku(record.furnitureId, record.drawerId, record.sku);
+    const img = found ? productImage(found.p) : null;
+    return `
+    <div class="rowItem">
+      ${img ? `<img class="prodThumb lightboxable" src="${img}">` : ''}
+      <span style="flex:1;">
+        <b>${record.sku}</b><br>
+        ${record.title}<br>
+        <span class="priceOld">${formatPriceEuro(record.oldPrice)} €</span> → <span class="priceNew">${formatPriceEuro(record.newPrice)} €</span>
+        <span class="priceChangeDate">Detectado: ${formatChangeDate(record.detectedAt)}</span>
+      </span>
+      <div class="priceChangeActions">
+        <button class="btn-primary" data-accept-i="${i}">Aceptar</button>
+        <button class="btn-ghost" data-discard-i="${i}">Descartar</button>
+      </div>
+    </div>`;
+  }).join('') || '<div class="small">No hay cambios de precio pendientes.</div>';
+
+  openSheet(`
+    <div class="sheetHeader"><h2>Cambios de precio (${pending.length})</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
+    <p class="small">Algunos productos han cambiado de precio en Koroshi desde tu última visita. Revisa cada uno y decide si aplicar el nuevo precio.</p>
+    ${pending.length ? `
+    <div class="addRow" style="margin-top:10px;">
+      <button class="btn-primary" id="acceptAllPricesBtn" style="flex:1;">Aceptar todos</button>
+      <button class="btn-ghost" id="discardAllPricesBtn" style="flex:1;">Descartar todos</button>
+    </div>` : ''}
+    <div style="margin-top:12px;">${rows}</div>
+  `);
+
+  sheet.querySelectorAll('[data-accept-i]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const record = pending[Number(btn.dataset.acceptI)];
+      acceptPriceChange(record);
+      render();
+      renderPriceChangesPanel();
+    });
+  });
+  sheet.querySelectorAll('[data-discard-i]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const record = pending[Number(btn.dataset.discardI)];
+      discardPriceChange(record);
+      renderPriceChangesPanel();
+    });
+  });
+  const acceptAllBtn = document.getElementById('acceptAllPricesBtn');
+  if (acceptAllBtn) acceptAllBtn.addEventListener('click', async () => { await acceptAllPriceChanges(); renderPriceChangesPanel(); });
+  const discardAllBtn = document.getElementById('discardAllPricesBtn');
+  if (discardAllBtn) discardAllBtn.addEventListener('click', async () => { await discardAllPriceChanges(); renderPriceChangesPanel(); });
+}
+
+const priceAlertBtn = document.getElementById('priceAlertBtn');
+priceAlertBtn.addEventListener('click', renderPriceChangesPanel);
 
 const listAllBtn = document.getElementById('listAllBtn');
 listAllBtn.addEventListener('click', renderAllItemsList);

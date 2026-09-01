@@ -78,9 +78,9 @@
   button { border:none; border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; }
   .btn-primary { background:var(--primary); color:#fff; }
   .btn-ghost { background:#e5e7eb; color:#111; }
-  #mapWrap { padding:10px; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden; box-sizing:border-box; }
+  #mapWrap { padding:10px; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; box-sizing:border-box; }
   #map {
-    position:relative;
+    position:relative; width:100%; aspect-ratio:16/10;
     background-color:#f5f5f6;
     background-image:
       linear-gradient(to right, rgba(37,99,235,0.15) 1px, transparent 1px),
@@ -264,8 +264,17 @@ const CURRENT_STORE_KEY = 'storeMapState_currentStore';
 // Fill this in with real code -> "Nombre, Ubicación" pairs. Blank = shows bare code only.
 const STORE_LOCATIONS = {
   'K01': 'La Maquinista, Barcelona',
+  'K26': 'Magic, Badalona',
+  'K34': 'Gran Via 2, Barcelona',
+  'K44': 'Girona',
   'K65': 'Baricentro, Barberà del Vallès',
+  'K69': 'Parc Central, Tarragona',
+  'K70': 'La Fira, Reus',
+  'K72': 'Diagonal Mar, Barcelona',
+  'K73': 'Lleida',
+  'K75': 'Carrer Pelayo, Barcelona',
   'K77': 'Sant Cugat del Vallès',
+  'K85': 'Platja d´Aro, Barcelona',
 };
 
 const LEGACY_STORAGE_KEY = 'storeMapState_v3'; // pre-multi-store save, migrated into K01
@@ -419,7 +428,6 @@ async function attemptEnter(){
     appHeader.style.display = '';
     document.getElementById('mapWrap').style.display = '';
     render();
-    resizeMapToFit();
     updatePriceAlertButton();
     loadFromCloud(currentStore).then(() => {
       if (shouldAutoRefresh(code)) {
@@ -2110,19 +2118,6 @@ function renderPriceChangesPanel(){
 
 const priceAlertBtn = document.getElementById('priceAlertBtn');
 priceAlertBtn.addEventListener('click', renderPriceChangesPanel);
-
-function resizeMapToFit(){
-  const wrap = document.getElementById('mapWrap');
-  if (wrap.offsetParent === null) return; // hidden (still on welcome screen)
-  const availW = wrap.clientWidth - 20; // minus wrap's own padding
-  const availH = wrap.clientHeight - 20;
-  let w = availW, h = w / 1.6; // 16:10
-  if (h > availH) { h = availH; w = h * 1.6; }
-  mapEl.style.width = w + 'px';
-  mapEl.style.height = h + 'px';
-}
-window.addEventListener('resize', resizeMapToFit);
-new ResizeObserver(resizeMapToFit).observe(document.getElementById('mapWrap'));
 
 const listAllBtn = document.getElementById('listAllBtn');
 listAllBtn.addEventListener('click', renderAllItemsList);

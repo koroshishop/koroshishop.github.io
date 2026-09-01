@@ -8,7 +8,8 @@
 <style>
   :root { --primary:#111111; --accent:#2563eb; --bg:#fafafa; --panel:#fff; --border:#e5e7eb; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); }
+  html, body { height:100%; overflow:hidden; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); display:flex; flex-direction:column; }
   header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:0 14px 0 0; background:#111; position:sticky; top:0; z-index:5; }
   .titleWrap { display:flex; align-items:center; gap:0; flex-wrap:wrap; }
   .headerLogo { height:52px; width:52px; object-fit:contain; flex-shrink:0; padding:8px; box-sizing:border-box; filter:invert(1); }
@@ -77,9 +78,9 @@
   button { border:none; border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; }
   .btn-primary { background:var(--primary); color:#fff; }
   .btn-ghost { background:#e5e7eb; color:#111; }
-  #mapWrap { padding:10px; }
+  #mapWrap { padding:10px; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden; box-sizing:border-box; }
   #map {
-    position:relative; width:100%; aspect-ratio:16/10;
+    position:relative;
     background-color:#f5f5f6;
     background-image:
       linear-gradient(to right, rgba(37,99,235,0.15) 1px, transparent 1px),
@@ -262,7 +263,7 @@ const CURRENT_STORE_KEY = 'storeMapState_currentStore';
 
 // Fill this in with real code -> "Nombre, Ubicación" pairs. Blank = shows bare code only.
 const STORE_LOCATIONS = {
-  'K01': 'Barcelona, La Maquinista',
+  'K01': 'La Maquinista, Barcelona',
   'K65': 'Baricentro, Barberà del Vallès',
   'K77': 'Sant Cugat del Vallès',
 };
@@ -418,6 +419,7 @@ async function attemptEnter(){
     appHeader.style.display = '';
     document.getElementById('mapWrap').style.display = '';
     render();
+    resizeMapToFit();
     updatePriceAlertButton();
     loadFromCloud(currentStore).then(() => {
       if (shouldAutoRefresh(code)) {
@@ -553,6 +555,13 @@ function cleanKoroshiTitle(title){
   t = t.replace(/\s{2,}/g, ' ').trim();
   t = t.replace(/^[-–—|]\s*/, '').replace(/\s*[-–—|]\s*$/, '').trim();
   return t;
+}
+
+function productHasVariantSku(r, sku){
+  return (r.variants || []).some(v => v.sku && trimSkuZeros(v.sku) === sku);
+}
+function getVariantBySku(r, sku){
+  return (r.variants || []).find(v => v.sku && trimSkuZeros(v.sku) === sku);
 }
 function trimSkuZeros(sku){
   // Shopify SKU format here is BASE-NUMBER-SIZE (e.g. 2621PT87-000014-S) — drop the size, then strip leading zeros from the number
@@ -1325,8 +1334,10 @@ function findProductLocations(key){
 function openViewSheet(furnitureId, drawerId){
   const f = state.furniture.find(x => x.id === furnitureId);
   const d = f.drawers.find(x => x.id === drawerId);
-  let items = d.products.map((p,i) => {
-    const parsed = parseProductName(productLabel(p));
+  const sortedProducts = d.products
+    .map((p, originalIdx) => ({ p, originalIdx, parsed: parseProductName(productLabel(p)) }))
+    .sort((a, b) => (a.parsed.sku || a.parsed.title).toLowerCase().localeCompare((b.parsed.sku || b.parsed.title).toLowerCase(), 'es'));
+  let items = sortedProducts.map(({ p, originalIdx, parsed }) => {
     const price = productPrice(p);
     return `
     <div class="rowItem">
@@ -1335,7 +1346,7 @@ function openViewSheet(furnitureId, drawerId){
         <b>${parsed.sku || ''}</b>${parsed.sku && price ? ' — ' : ''}${price ? '<b style="color:#2563eb;">' + formatPriceEuro(price) + ' €</b>' : ''}<br>
         ${parsed.title}
       </span>
-      <button class="del" data-idx="${i}">Quitar</button>
+      <button class="del" data-idx="${originalIdx}">Quitar</button>
     </div>`;
   }).join('') || '<div class="small">Vacío.</div>';
   openSheet(`
@@ -1373,38 +1384,67 @@ function openViewSheet(furnitureId, drawerId){
         const products = await searchKoroshi(q);
         statusEl.textContent = products.length ? '' : 'Sin resultados.';
         const targetIsDrawerType = isDrawerTypeFixture(f);
-        resultsEl.innerHTML = products.map((p,i) => {
+                function addDrawerVariant(p, v){
+          pushUndo();
           const cleanTitle = cleanKoroshiTitle(p.title);
-          const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
-          const key = (sku || p.title).trim().toLowerCase();
-          const matches = findProductLocations(key);
-          const sameDrawerMatch = matches.find(m => m.drawerId === drawerId);
-          let dupNote = '', disabled = false;
-          if (sameDrawerMatch) {
-            disabled = true;
-            dupNote = 'Ya está en este cajón';
-          } else if (targetIsDrawerType && matches.some(m => m.isDrawerType)) {
-            disabled = true;
-            dupNote = 'Ya está en otro cajón';
-          }
-          const priceHtml = p.price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(p.price) + ' €</b>' : '';
-          return `
-          <div class="searchResultItem${disabled ? ' disabled' : ''}" data-i="${i}" ${disabled ? 'data-disabled="1"' : ''}>
-            <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
-            <span>${sku ? '<span style="color:#6b7280;font-size:11px;">' + sku + ' — </span>' : ''}${cleanTitle}${priceHtml}${dupNote ? '<span class="dupNote">' + dupNote + '</span>' : ''}</span>
-          </div>`;
-        }).join('');
-        resultsEl.querySelectorAll('[data-i]:not([data-disabled])').forEach(el => {
-          el.addEventListener('click', () => {
-            pushUndo();
-            const p = products[Number(el.dataset.i)];
+          const sku = v.sku ? trimSkuZeros(v.sku) : '';
+          d.products.push({ name: formatProductName(sku, cleanTitle), image: v.image || p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '', price: p.price || '' });
+          persist();
+          openViewSheet(furnitureId, drawerId);
+        }
+        function renderProductList(){
+          resultsEl.innerHTML = products.map((p,i) => {
             const cleanTitle = cleanKoroshiTitle(p.title);
-            const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
-            d.products.push({ name: formatProductName(sku, cleanTitle), image: p.image || '', url: p.url ? ('https://koroshishop.com' + p.url) : '', price: p.price || '' });
-            persist();
-            openViewSheet(furnitureId, drawerId);
+            const priceHtml = p.price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(p.price) + ' €</b>' : '';
+            const colorCount = (p.variants && p.variants.length) ? p.variants.length : 1;
+            const colorNote = colorCount > 1 ? ' <span class="small">(' + colorCount + ' colores)</span>' : '';
+            return `
+            <div class="searchResultItem" data-prod-i="${i}">
+              <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
+              <span>${cleanTitle}${priceHtml}${colorNote}</span>
+            </div>`;
+          }).join('');
+          resultsEl.querySelectorAll('[data-prod-i]').forEach(el => {
+            el.addEventListener('click', () => {
+              const p = products[Number(el.dataset.prodI)];
+              const variants = (p.variants && p.variants.length) ? p.variants : [{ sku:'', color:'', image:'' }];
+              if (variants.length <= 1) { addDrawerVariant(p, variants[0]); return; }
+              renderColorPicker(p);
+            });
           });
-        });
+        }
+
+        function renderColorPicker(p){
+          const variants = (p.variants && p.variants.length) ? p.variants : [{ sku:'', color:'', image:'' }];
+          const cleanTitle = cleanKoroshiTitle(p.title);
+          const rowsHtml = variants.map((v,i) => {
+            const sku = v.sku ? trimSkuZeros(v.sku) : '';
+            const key = (sku || p.title).trim().toLowerCase();
+            const matches = findProductLocations(key);
+            const sameDrawerMatch = matches.find(m => m.drawerId === drawerId);
+            let dupNote = '', disabled = false;
+            if (sameDrawerMatch) { disabled = true; dupNote = 'Ya está en este cajón'; }
+            else if (targetIsDrawerType && matches.some(m => m.isDrawerType)) { disabled = true; dupNote = 'Ya está en otro cajón'; }
+            const colorLabel = v.color || 'Único';
+            return `
+            <div class="searchResultItem${disabled ? ' disabled' : ''}" data-color-i="${i}" ${disabled ? 'data-disabled="1"' : ''}>
+              <img src="${v.image || p.image || ''}" onerror="this.style.visibility='hidden'">
+              <span>${sku ? '<span style="color:#6b7280;font-size:11px;">' + sku + ' — </span>' : ''}${colorLabel}${dupNote ? '<span class="dupNote">' + dupNote + '</span>' : ''}</span>
+            </div>`;
+          }).join('');
+          resultsEl.innerHTML = `
+            <div class="rowItem" style="cursor:pointer;" id="backToProductsBtn"><span>← ${cleanTitle} — elige color</span></div>
+            ${rowsHtml}
+          `;
+          document.getElementById('backToProductsBtn').addEventListener('click', renderProductList);
+          resultsEl.querySelectorAll('[data-color-i]:not([data-disabled])').forEach(el => {
+            el.addEventListener('click', () => {
+              addDrawerVariant(p, variants[Number(el.dataset.colorI)]);
+            });
+          });
+        }
+
+        renderProductList();
       } catch (err) {
         if (err.name === 'AbortError') return; // a newer keystroke superseded this search — not a real error
         statusEl.textContent = 'No se pudo conectar con Koroshi (' + err.message + ').';
@@ -1547,45 +1587,25 @@ globalSearchInput.addEventListener('input', () => {
   globalSearchDebounce = setTimeout(async () => {
     let products = [];
     try { products = await searchKoroshi(q); } catch (err) { /* show empty below */ }
-    const rows = products.map(p => {
+        globalSearchResults.innerHTML = products.map((p,i) => {
       const cleanTitle = cleanKoroshiTitle(p.title);
-      const sku = (p.variants && p.variants[0] && p.variants[0].sku) ? trimSkuZeros(p.variants[0].sku) : '';
-      const key = (sku || p.title).trim().toLowerCase();
-      const locations = findProductLocations(key);
-      return { cleanTitle, sku, price: p.price || '', image: p.image || '', url: p.url || '', locations };
-    });
-    globalSearchResults.innerHTML = rows.map((r,i) => {
-      const locLabel = r.locations.map(loc => fixtureNameById(loc.furnitureId) + ' — ' + drawerNameById(loc.furnitureId, loc.drawerId)).join(', ');
-      const priceHtml = r.price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(r.price) + ' €</b>' : '';
+      const priceHtml = p.price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(p.price) + ' €</b>' : '';
+      const colorCount = (p.variants && p.variants.length) ? p.variants.length : 1;
+      const colorNote = colorCount > 1 ? ' <span class="small">(' + colorCount + ' colores)</span>' : '';
       return `
-      <div class="gsItem" data-i="${i}">
-        <img src="${r.image}" onerror="this.style.visibility='hidden'">
+      <div class="gsItem" data-prod-i="${i}">
+        <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
         <div class="gsInfo">
-          <div>${r.sku ? r.sku + ' — ' : ''}${r.cleanTitle}${priceHtml}</div>
-          ${r.locations.length ? `<div class="gsLoc">${locLabel}</div>` : `<div class="gsUnplaced">Sin ubicar</div>`}
+          <div>${cleanTitle}${priceHtml}${colorNote}</div>
         </div>
-        <button class="gsAssignBtn" data-assign="${i}">Asignar</button>
+        <button class="gsAssignBtn" data-assign="${i}">Elegir color</button>
       </div>`;
     }).join('') || '<div class="gsItem"><div class="gsInfo">Sin resultados.</div></div>';
 
-    globalSearchResults.querySelectorAll('.gsItem').forEach((itemEl, i) => {
-      const r = rows[i];
-      const locEl = itemEl.querySelector('.gsLoc');
-      if (locEl && r.locations.length) {
-        locEl.style.cursor = 'pointer';
-        locEl.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const loc = r.locations[0];
-          openViewSheet(loc.furnitureId, loc.drawerId);
-          globalSearchResults.innerHTML = '';
-          globalSearchInput.value = '';
-        });
-      }
-    });
     globalSearchResults.querySelectorAll('[data-assign]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        openAssignPicker(rows[Number(btn.dataset.assign)]);
+        openColorPickerForAssign(products[Number(btn.dataset.assign)]);
       });
     });
   }, 350);
@@ -1594,6 +1614,54 @@ globalSearchInput.addEventListener('input', () => {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.globalSearchWrap')) globalSearchResults.innerHTML = '';
 });
+
+function openColorPickerForAssign(p){
+  const cleanTitle = cleanKoroshiTitle(p.title);
+  const variants = (p.variants && p.variants.length) ? p.variants : [{ sku:'', color:'', image:'' }];
+  if (variants.length <= 1) {
+    const v = variants[0];
+    const sku = v.sku ? trimSkuZeros(v.sku) : '';
+    openAssignPicker({
+      cleanTitle, sku, price: p.price || '', image: v.image || p.image || '', url: p.url || '',
+      locations: findProductLocations((sku || p.title).trim().toLowerCase())
+    });
+    return;
+  }
+  const rowsHtml = variants.map((v,i) => {
+    const sku = v.sku ? trimSkuZeros(v.sku) : '';
+    const key = (sku || p.title).trim().toLowerCase();
+    const locations = findProductLocations(key);
+    const locLabel = locations.map(loc => fixtureNameById(loc.furnitureId) + ' — ' + drawerNameById(loc.furnitureId, loc.drawerId)).join(', ');
+    const colorLabel = v.color || 'Único';
+    return `
+    <div class="rowItem">
+      ${v.image || p.image ? `<img class="prodThumb" src="${v.image || p.image}">` : ''}
+      <span style="flex:1;">
+        ${sku ? '<span style="color:#6b7280;font-size:11px;">' + sku + ' — </span>' : ''}${colorLabel}
+        ${locations.length ? `<span class="gsLoc" style="display:block;">${locLabel}</span>` : `<span class="gsUnplaced" style="display:block;">Sin ubicar</span>`}
+      </span>
+      <button class="rowBtn" data-pick-color="${i}" style="flex:0 0 auto; background:#111; color:#fff; padding:6px 10px; border-radius:6px;">Asignar</button>
+    </div>`;
+  }).join('');
+  openSheet(`
+    <div class="sheetHeader"><h2>${cleanTitle}</h2><button class="btn-ghost" onclick="closeSheet()">Cerrar</button></div>
+    ${rowsHtml}
+  `);
+  sheet.querySelectorAll('[data-pick-color]').forEach(b => {
+    b.addEventListener('click', () => {
+      const v = variants[Number(b.dataset.pickColor)];
+      const sku = v.sku ? trimSkuZeros(v.sku) : '';
+      openAssignPicker({
+        cleanTitle,
+        sku,
+        price: p.price || '',
+        image: v.image || p.image || '',
+        url: p.url || '',
+        locations: findProductLocations((sku || p.title).trim().toLowerCase())
+      });
+    });
+  });
+}
 
 function openAssignPicker(r){
   const hasDrawerTypeLocation = r.locations.some(loc => loc.isDrawerType);
@@ -2042,6 +2110,19 @@ function renderPriceChangesPanel(){
 
 const priceAlertBtn = document.getElementById('priceAlertBtn');
 priceAlertBtn.addEventListener('click', renderPriceChangesPanel);
+
+function resizeMapToFit(){
+  const wrap = document.getElementById('mapWrap');
+  if (wrap.offsetParent === null) return; // hidden (still on welcome screen)
+  const availW = wrap.clientWidth - 20; // minus wrap's own padding
+  const availH = wrap.clientHeight - 20;
+  let w = availW, h = w / 1.6; // 16:10
+  if (h > availH) { h = availH; w = h * 1.6; }
+  mapEl.style.width = w + 'px';
+  mapEl.style.height = h + 'px';
+}
+window.addEventListener('resize', resizeMapToFit);
+new ResizeObserver(resizeMapToFit).observe(document.getElementById('mapWrap'));
 
 const listAllBtn = document.getElementById('listAllBtn');
 listAllBtn.addEventListener('click', renderAllItemsList);

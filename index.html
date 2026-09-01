@@ -2128,12 +2128,8 @@ function updateMapHeight(){
   const viewport = document.getElementById('mapViewport');
   const wrapWidth = viewport.clientWidth;
   if (!wrapWidth) return;
-  let maxYPercent = 20; // sensible minimum even on an empty map
-  state.furniture.forEach(f => {
-    const bottom = f.y + f.h;
-    if (bottom > maxYPercent) maxYPercent = bottom;
-  });
-  const paddedPercent = Math.min(100, maxYPercent + 8); // small buffer below the lowest piece
+  const FIXED_GRID_SQUARES_TALL = 22; // hard-coded crop height, in grid squares (GRID = 2% each)
+  const paddedPercent = FIXED_GRID_SQUARES_TALL * GRID;
   const fullHeightPx = wrapWidth / MAP_ASPECT; // matches #map's own real aspect-ratio — keeps coordinate math correct
   viewport.style.height = (fullHeightPx * (paddedPercent / 100)) + 'px';
 }

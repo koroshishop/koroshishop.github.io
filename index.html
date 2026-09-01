@@ -80,7 +80,7 @@
   .btn-ghost { background:#e5e7eb; color:#111; }
   #mapWrap { padding:10px; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; box-sizing:border-box; }
   #map {
-    position:relative; width:100%; aspect-ratio:16/10;
+    position:relative; width:100%; min-height:200px;
     background-color:#f5f5f6;
     background-image:
       linear-gradient(to right, rgba(37,99,235,0.15) 1px, transparent 1px),
@@ -88,7 +88,7 @@
       linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
     background-size: 8% 12.8%, 8% 12.8%, 2% 3.2%, 2% 3.2%;
-    border:1px solid var(--border); border-radius:10px; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none;
+    border:1px solid var(--border); border-radius:10px; touch-action:none; user-select:none; -webkit-user-select:none;
   }
 
   .furniture { position:absolute; user-select:none; transform-origin:center center; }
@@ -261,7 +261,6 @@
 const STORAGE_PREFIX = 'storeMapState_v3_';
 const CURRENT_STORE_KEY = 'storeMapState_currentStore';
 
-// Fill this in with real code -> "Nombre, Ubicación" pairs. Blank = shows bare code only.
 const STORE_LOCATIONS = {
   'K01': 'La Maquinista, Barcelona',
   'K26': 'Magic, Badalona',
@@ -428,6 +427,7 @@ async function attemptEnter(){
     appHeader.style.display = '';
     document.getElementById('mapWrap').style.display = '';
     render();
+    updateMapHeight();
     updatePriceAlertButton();
     loadFromCloud(currentStore).then(() => {
       if (shouldAutoRefresh(code)) {
@@ -741,6 +741,7 @@ function newFixture(type){
 
 function render(){
   mapEl.innerHTML = '';
+  updateMapHeight();
   state.furniture.forEach(f => {
     const el = document.createElement('div');
     const selHere = isSelected(f.id);
@@ -2119,8 +2120,24 @@ function renderPriceChangesPanel(){
 const priceAlertBtn = document.getElementById('priceAlertBtn');
 priceAlertBtn.addEventListener('click', renderPriceChangesPanel);
 
+function updateMapHeight(){
+  const wrap = document.getElementById('mapWrap');
+  const wrapWidth = mapEl.clientWidth || wrap.clientWidth;
+  let maxYPercent = 20; // sensible minimum even on an empty map
+  state.furniture.forEach(f => {
+    const bottom = f.y + f.h;
+    if (bottom > maxYPercent) maxYPercent = bottom;
+  });
+  const paddedPercent = Math.min(100, maxYPercent + 8); // small buffer below the lowest piece
+  const heightPx = wrapWidth * (paddedPercent / 100) * MAP_ASPECT;
+  mapEl.style.height = heightPx + 'px';
+}
+
 const listAllBtn = document.getElementById('listAllBtn');
 listAllBtn.addEventListener('click', renderAllItemsList);
+
+window.addEventListener('resize', updateMapHeight);
+new ResizeObserver(updateMapHeight).observe(document.getElementById('mapWrap'));
 
 </script>
 </body>

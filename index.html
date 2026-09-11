@@ -1409,19 +1409,40 @@ function openViewSheet(furnitureId, drawerId){
           resultsEl.innerHTML = products.map((p,i) => {
             const cleanTitle = cleanKoroshiTitle(p.title);
             const priceHtml = p.price ? ' — <b style="color:#2563eb;">' + formatPriceEuro(p.price) + ' €</b>' : '';
-            const colorCount = (p.variants && p.variants.length) ? p.variants.length : 1;
+            const variants = (p.variants && p.variants.length) ? p.variants : [{ sku:'', color:'', image:'' }];
+            const colorCount = variants.length;
             const colorNote = colorCount > 1 ? ' <span class="small">(' + colorCount + ' colores)</span>' : '';
+            let skuHtml = '', dupNote = '';
+            if (colorCount === 1) {
+              const sku = variants[0].sku ? trimSkuZeros(variants[0].sku) : '';
+              skuHtml = sku ? '<span style="color:#6b7280;font-size:11px;">' + sku + ' — </span>' : '';
+              const key = (sku || p.title).trim().toLowerCase();
+              const matches = findProductLocations(key);
+              const sameDrawerMatch = matches.find(m => m.drawerId === drawerId);
+              if (sameDrawerMatch) dupNote = 'Ya está en este cajón';
+              else if (matches.length === 0) dupNote = 'No está en ningún cajón/percha todavía';
+              else if (targetIsDrawerType && matches.some(m => m.isDrawerType)) dupNote = 'Ya está en otro cajón';
+            }
             return `
             <div class="searchResultItem" data-prod-i="${i}">
               <img src="${p.image || ''}" onerror="this.style.visibility='hidden'">
-              <span>${cleanTitle}${priceHtml}${colorNote}</span>
+              <span>${skuHtml}${cleanTitle}${priceHtml}${colorNote}${dupNote ? '<span class="dupNote">' + dupNote + '</span>' : ''}</span>
             </div>`;
           }).join('');
           resultsEl.querySelectorAll('[data-prod-i]').forEach(el => {
             el.addEventListener('click', () => {
               const p = products[Number(el.dataset.prodI)];
               const variants = (p.variants && p.variants.length) ? p.variants : [{ sku:'', color:'', image:'' }];
-              if (variants.length <= 1) { addDrawerVariant(p, variants[0]); return; }
+              if (variants.length <= 1) {
+                const sku = variants[0].sku ? trimSkuZeros(variants[0].sku) : '';
+                const key = (sku || p.title).trim().toLowerCase();
+                const matches = findProductLocations(key);
+                const sameDrawerMatch = matches.find(m => m.drawerId === drawerId);
+                const blocked = sameDrawerMatch || (targetIsDrawerType && matches.some(m => m.isDrawerType));
+                if (blocked) return; // already placed somewhere that conflicts — don't add again
+                addDrawerVariant(p, variants[0]);
+                return;
+              }
               renderColorPicker(p);
             });
           });

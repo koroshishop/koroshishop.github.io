@@ -9,6 +9,10 @@
   :root { --primary:#111111; --accent:#2563eb; --bg:#fafafa; --panel:#fff; --border:#e5e7eb; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { height:100%; overflow:hidden; }
+  #lockScreen { position:fixed; inset:0; background:#0a0a0a; z-index:200; display:flex; align-items:center; justify-content:center; padding:30px; text-align:center; }
+  #lockScreen img { height:64px; width:64px; object-fit:contain; margin-bottom:22px; filter:invert(1); }
+  #lockScreen h2 { font-size:18px; text-transform:uppercase; letter-spacing:0.1em; color:#fff; font-weight:800; margin:0 0 14px; }
+  #lockScreen p { font-size:14px; color:#9ca3af; max-width:420px; line-height:1.6; margin:0; white-space:pre-line; }
   body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); display:flex; flex-direction:column; }
   header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:0 14px 0 0; background:#111; position:sticky; top:0; z-index:5; }
   .titleWrap { display:flex; align-items:center; gap:0; flex-wrap:wrap; }
@@ -188,6 +192,14 @@
 </head>
 <body>
 
+<div id="lockScreen" style="display:none;">
+  <div>
+    <img src="icon.png" alt="">
+    <h2>Mapa de tienda</h2>
+    <p id="lockScreenMessage">Acceso desactivado temporalmente.</p>
+  </div>
+</div>
+
 <div id="welcomeOverlay">
   <div class="welcomeBox">
     <img src="icon.png" alt="">
@@ -259,6 +271,16 @@
 <div id="sheet"></div>
 
 <script>
+// --- Kill switch: set to true to lock the whole app behind a message, no functionality removed ---
+const APP_LOCKED = true;
+const APP_LOCKED_MESSAGE = `Acceso desactivado temporalmente.`;
+
+if (APP_LOCKED) {
+  document.getElementById('lockScreenMessage').textContent = APP_LOCKED_MESSAGE;
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.currentScript.remove(); // prevents the rest of this script block from ever running
+}
+
 const STORAGE_PREFIX = 'storeMapState_v3_';
 const CURRENT_STORE_KEY = 'storeMapState_currentStore';
 

@@ -195,15 +195,15 @@
 <div id="lockScreen" style="display:none;">
   <div>
     <img src="icon.png" alt="">
-    <h2>Que os den por el culo</h2>
-    <p id="lockScreenMessage">Me echáis y encima queréis seguir utilizando mi app por toda la cara y sin pagarme. Con dos cojones.</p>
+    <h2>App is locked</h2>
+    <p id="lockScreenMessage">Got laid off and Koroshi hasn't paid me. This web-site will remain locked until further notice.</p>
   </div>
 </div>
 
 <div id="welcomeOverlay">
   <div class="welcomeBox">
     <img src="icon.png" alt="">
-    <h2>Que os den por el culo</h2>
+    <h2>App is locked</h2>
     <p>Selecciona tu tienda para continuar</p>
     <select id="welcomeStoreSelect"></select>
     <label for="welcomePasswordInput">Contraseña</label>
@@ -273,8 +273,7 @@
 <script>
 // --- Kill switch: set to true to lock the whole app behind a message, no functionality removed ---
 const APP_LOCKED = true;
-const APP_LOCKED_MESSAGE = `Me echáis y encima queréis seguir utilizando mi app.
-Y sin pagarme. Con dos cojones.`;
+const APP_LOCKED_MESSAGE = `Portal is locked.`;
 
 if (APP_LOCKED) {
   document.getElementById('lockScreenMessage').textContent = APP_LOCKED_MESSAGE;
